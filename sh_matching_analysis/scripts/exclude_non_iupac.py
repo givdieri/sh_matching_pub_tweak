@@ -7,7 +7,8 @@ import re
 from pathlib import Path
 
 from Bio import SeqIO
-
+# Increase CSV field size limit
+csv.field_size_limit(10**7)
 parser = argparse.ArgumentParser(description="Script to remove sequences with more than X ambiguous bases)")
 parser.add_argument("run_id", help="Need run id in numeric format!")
 parser.add_argument("allowed_number", help="Need allowed number of ambiguous bases in numeric format!")
