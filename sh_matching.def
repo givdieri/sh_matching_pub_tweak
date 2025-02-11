@@ -1,12 +1,15 @@
 # A base Ubuntu 20 Singularity container with basic Python packages
 
-BootStrap: library
+BootStrap: docker
 From: ubuntu:20.04
 
 %help
 A base Ubuntu 20 Singularity container with basic Python packages such as HMMER3 and biopython
 
 %post
+    export APPTAINER_CACHEDIR=/tmp/$USER/apptainer/cache
+    export APPTAINER_TMPDIR=/tmp/$USER/apptainer/tmpdir
+    mkdir -p $APPTAINER_TMPDIR
     # Some package only available in "universe" repo
     apt update -y
     apt install -y software-properties-common
@@ -21,6 +24,7 @@ A base Ubuntu 20 Singularity container with basic Python packages such as HMMER3
     apt install -y unzip
     apt install -y hmmer
     apt install -y wget
+
 
     mkdir -p /sh_matching/programs/
 
