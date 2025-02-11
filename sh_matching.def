@@ -62,6 +62,12 @@ A base Ubuntu 20 Singularity container with basic Python packages such as HMMER3
     unzip sh_matching_data_0_5.zip -d /sh_matching/
     rm sh_matching_data_0_5.zip
 
+    # switch script for chims and non iupac chars
+    wget https://raw.githubusercontent.com/MycoMatics/sh_matching_pub_tweak/refs/heads/master/sh_matching_analysis/scripts/exclude_chims.py
+    mv exclude_chims.py /sh_matching/scripts/exclude_chims.py
+    wget https://raw.githubusercontent.com/MycoMatics/sh_matching_pub_tweak/refs/heads/master/sh_matching_analysis/scripts/exclude_non_iupac.py
+    mv exclude_chims.py /sh_matching/scripts/exclude_non_iupac.py
+
 %environment
     export LC_ALL=C
 
