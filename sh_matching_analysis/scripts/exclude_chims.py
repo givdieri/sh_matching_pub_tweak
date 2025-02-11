@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 
 from Bio import SeqIO
+# Increase CSV field size limit
+csv.field_size_limit(10**7)
 
 parser = argparse.ArgumentParser(description="Script to exclude chimeras identified by vsearch")
 parser.add_argument("run_id", help="Need run id in numeric format!")
