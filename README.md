@@ -27,7 +27,11 @@ The script expects input files in FASTA format. Outdata files are described in [
 
 1. Create Singularity Image File (SIF)
     ```console
-    sudo singularity build sh_matching.sif sh_matching.def
+    git clone https://github.com/MycoMatics/sh_matching_pub_tweak
+    export APPTAINER_TMPDIR=/tmp
+    mkdir -p $APPTAINER_TMPDIR
+    chmod 777 /tmp
+    apptainer build sh_matching.sif sh_matching.def
     ```
 
 2. OPTIONAL: Copy SIF to HPC
@@ -49,10 +53,12 @@ The script expects input files in FASTA format. Outdata files are described in [
     unzip sh_matching_data_udb_0_5.zip
     rm sh_matching_data_udb_0_5.zip
     cd data_udb/
+    ml load VSEARCH
     vsearch --makeudb_usearch sanger_refs_sh.fasta --output sanger_refs_sh.udb
     rm sanger_refs_sh.fasta
     vsearch --makeudb_usearch sanger_refs_sh_full.fasta --output sanger_refs_sh_full.udb
     rm sanger_refs_sh_full.fasta
+    ml purge
     ```
 
 ## Running the analysis
