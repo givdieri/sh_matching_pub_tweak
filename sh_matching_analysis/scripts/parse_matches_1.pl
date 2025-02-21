@@ -138,7 +138,7 @@ foreach my $threshold (@thresholds) {
                 my $dupl = $fields2[$k];
                 $dupl =~ s/i//g;
                 # print each duplicate in a separate row
-                print $dupl . "\t" . $seq_id_hash{$dupl} . "\tDuplicate of " . $seq_id_hash{$seq_id} . "\n";
+                # print $dupl . "\t" . $seq_id_hash{$dupl} . "\tDuplicate of " . $seq_id_hash{$seq_id} . "\n";
                 print MATCHES_OUT $dupl . "\t" . $seq_id_hash{$dupl} . "\t";
                 print MATCHES_OUT $duplicate_status . "\t" . $duplicate_sh_code . "\t" . $duplicate_ucl_code . "\t" . $seq_id . "\t" . $seq_id_hash{$seq_id}. "\n";
             }
