@@ -47,6 +47,7 @@ echo "Remove userdir - $remove_userdir"
 echo "vsearch substring dereplication step - $include_vsearch_step"
 echo "usearch 0.5% pre-clustering step - $include_usearch_05_step"
 echo "Using $THREADS threads"
+echo 'Glen says Hello :) "
 ## get working directory
 pwd=$(pwd)
 
