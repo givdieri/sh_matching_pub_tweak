@@ -39,11 +39,14 @@ if [ "$itsx_step" != "yes" ] && [ "$itsx_step" != "no" ]; then
   echo "Setting itsx_step to yes"
   itsx_step="yes"
 fi
+THREADS=$(nproc)
+export $THREADS
 
 echo "ITSx - $itsx_step"
-THREADS=$(nproc)
+echo "Remove userdir - $remove_userdir"
+echo "vsearch substring dereplication step - $include_vsearch_step"
+echo "usearch 0.5% pre-clustering step - $include_usearch_05_step"
 echo "Using $THREADS threads"
-export $THREADS
 ## get working directory
 pwd=$(pwd)
 
@@ -94,11 +97,11 @@ if [ "$itsx_step" == "yes" ]; then
     ## Extract ITS regions, first for fungi, and then all other groups.
     pushd "$user_dir"
     mkdir ITSx
-    perl "$program_dir/ITSx/ITSx" -t F -i "$infile_new""unique" -o itsx_sh_out --cpu 8 --save_regions ITS1,5.8S,ITS2 --partial 50 --detailed_results T -concat T -preserve T -N 1 --search_eval 0.1 -E 0.1 --graphical F --complement T
+    perl "$program_dir/ITSx/ITSx" -t F -i "$infile_new""unique" -o itsx_sh_out --cpu $THREADS --save_regions ITS1,5.8S,ITS2 --partial 50 --detailed_results T -concat T -preserve T -N 1 --search_eval 0.1 -E 0.1 --graphical F --complement T
     mv itsx_sh_out* ITSx/
 
     mkdir ITSx_o
-    perl "$program_dir/ITSx/ITSx" -t A,B,C,D,E,G,H,I,L,M,O,P,Q,R,S,T,U -i "$infile_new""unique" -o itsx_sh_out_o --cpu 8 --save_regions ITS1,5.8S,ITS2 --partial 50 --detailed_results T -concat T -preserve T -N 1 --graphical F --complement T
+    perl "$program_dir/ITSx/ITSx" -t A,B,C,D,E,G,H,I,L,M,O,P,Q,R,S,T,U -i "$infile_new""unique" -o itsx_sh_out_o --cpu $THREADS --save_regions ITS1,5.8S,ITS2 --partial 50 --detailed_results T -concat T -preserve T -N 1 --graphical F --complement T
     mv itsx_sh_out_o* ITSx_o/
     popd
 
@@ -237,7 +240,9 @@ if [ "$include_usearch_05_step" == "yes" ]; then
     ## END NEW: preclustering steps to keep only 0.5% representatives
 else
     cp "$user_dir/iupac_out_vsearch.fasta" "$user_dir/core_reps_pre.fasta"
-    touch "$user_dir/duplic_seqs.txt"
+    ## write vsearch uniques into duplic_seqs.txt file
+    python3 "$script_dir/usearch_parser_uniq.py" "$run_id"
+
 fi
 
 ## Find best matches to user’s sequences in the existing SH sequence dataset using usearch_global algorithm.
