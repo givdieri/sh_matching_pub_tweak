@@ -41,10 +41,9 @@ if [ "$itsx_step" != "yes" ] && [ "$itsx_step" != "no" ]; then
 fi
 
 echo "ITSx - $itsx_step"
-echo "Remove userdir - $remove_userdir"
-echo "vsearch substring dereplication step - $include_vsearch_step"
-echo "usearch 0.5% pre-clustering step - $include_usearch_05_step"
-
+THREADS=$(nproc)
+echo "Using $THREADS threads"
+export $THREADS
 ## get working directory
 pwd=$(pwd)
 
@@ -116,7 +115,7 @@ fi
 ## Chimera filtering using vsearch
 pushd "$user_dir"
 ## vsearch usearch_global
-"$program_dir/vsearch/bin/vsearch" --usearch_global "$user_dir/seqs_out.fasta" --db "$udb_data_dir/sanger_refs_sh.udb" --strand plus --id .75 --threads 8 --uc "$user_dir/usearch_global.full.75.map.uc" --blast6out "$user_dir/usearch_global.full.75.blast6out.txt" --output_no_hits
+"$program_dir/vsearch/bin/vsearch" --usearch_global "$user_dir/seqs_out.fasta" --db "$udb_data_dir/sanger_refs_sh.udb" --strand plus --id .75 --threads $THREADS --uc "$user_dir/usearch_global.full.75.map.uc" --blast6out "$user_dir/usearch_global.full.75.blast6out.txt" --output_no_hits
 popd
 
 ## handle all potentially chimeric sequences from usearch_global
@@ -129,7 +128,7 @@ python3 "$script_dir/exclude_non_iupac.py" "$run_id" 6
 pushd $user_dir
 if [ "$include_vsearch_step" == "yes" ]; then
     echo "Running vsearch 100% clustering"
-    "$program_dir/vsearch/bin/vsearch" --cluster_fast "$user_dir/iupac_out_vsearch_96.fasta" --id 1 --iddef 2 --threads 8 --uc "$user_dir/clusters_100.uc" --centroids "$user_dir/centroids_100.fasta" --query_cov 0.96 --target_cov 0.96
+    "$program_dir/vsearch/bin/vsearch" --cluster_fast "$user_dir/iupac_out_vsearch_96.fasta" --id 1 --iddef 2 --threads $THREADS --uc "$user_dir/clusters_100.uc" --centroids "$user_dir/centroids_100.fasta" --query_cov 0.96 --target_cov 0.96
 else
     echo "Skipping the vsearch 100% clustering step with 96% length coverage"
     "$program_dir/vsearch/bin/vsearch" --fastx_uniques "$user_dir/iupac_out_vsearch_96.fasta" --fastaout "$user_dir/centroids_100.fasta" --uc "$user_dir/clusters_100.uc"
@@ -238,14 +237,12 @@ if [ "$include_usearch_05_step" == "yes" ]; then
     ## END NEW: preclustering steps to keep only 0.5% representatives
 else
     cp "$user_dir/iupac_out_vsearch.fasta" "$user_dir/core_reps_pre.fasta"
-    ## write vsearch uniques into duplic_seqs.txt file
-    python3 "$script_dir/usearch_parser_uniq.py" "$run_id"
-
+    touch "$user_dir/duplic_seqs.txt"
 fi
 
 ## Find best matches to user’s sequences in the existing SH sequence dataset using usearch_global algorithm.
 pushd "$user_dir"
-"$program_dir/vsearch/bin/vsearch" --usearch_global "$user_dir/core_reps_pre.fasta" --db "$udb_data_dir/sanger_refs_sh_full.udb" --strand plus --id 0.8 --threads 8 --iddef 0 --gapopen 0I/0E --gapext 2I/1E --uc "$user_dir/closedref.80.map.uc" --maxaccepts 3 --maxrejects 0
+"$program_dir/vsearch/bin/vsearch" --usearch_global "$user_dir/core_reps_pre.fasta" --db "$udb_data_dir/sanger_refs_sh_full.udb" --strand plus --id 0.8 --threads $THREADS --iddef 0 --gapopen 0I/0E --gapext 2I/1E --uc "$user_dir/closedref.80.map.uc" --maxaccepts 3 --maxrejects 0
 popd
 
 python3 "$script_dir/parse_usearch_results.py" "$run_id"
