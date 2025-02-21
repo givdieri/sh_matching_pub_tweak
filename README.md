@@ -33,6 +33,7 @@ The script expects input files in FASTA format. Outdata files are described in [
     export APPTAINER_TMPDIR=/tmp
     mkdir -p $APPTAINER_TMPDIR
     chmod 777 /tmp
+    cd sh_matching_pub_tweak/
     apptainer build sh_matching.sif sh_matching.def
     ```
 
