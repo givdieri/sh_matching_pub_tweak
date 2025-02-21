@@ -1,0 +1,11 @@
+srun --nodes=7 --ntasks=7 --label /bin/bash -c '
+  # Generate a timestamp
+  TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+  # Duplicate all output (stdout and stderr) to a log file and the screen:
+  exec > >(tee -a job_${SLURM_PROCID}_$(hostname)_${TIMESTAMP}.log) 2>&1
+  export OMP_NUM_THREADS=12
+  # Each node processes 2 input files sequentially:
+  RUNID1=$(sed -n "$((SLURM_PROCID+1))p" source_numbers.txt)
+  echo "Task $SLURM_PROCID on $(hostname) processing RUNID1: $RUNID1"
+  ./sh_matching3.sif /sh_matching/run_pipeline.sh $RUNID1 itsfull no yes yes no
+'
