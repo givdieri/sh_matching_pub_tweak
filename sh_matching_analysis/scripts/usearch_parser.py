@@ -47,13 +47,25 @@ seq_counter_all = 0  # sequence count with duplicates included
 print("Collecting duplicate sequences (cov100) ...")
 cov100_uniq_dict = {}
 with open(cov100_uniq_file, "r") as f:
-    dataReader = csv.reader(f, delimiter="\t")
-    for row in dataReader:
-        # include only those sequences where duplicates are present
-        if row[0] != row[1]:
-            cov100_list = row[1].split(",")
-            cov100_list.remove(row[0])
-            cov100_uniq_dict[row[0]] = (",").join(cov100_list)
+    for line in f:
+        # Remove any trailing newline characters
+        line = line.rstrip("\n")
+        # Split only on the first tab character
+        parts = line.split("\t", 1)
+        if len(parts) < 2:
+            continue  # skip lines that don't have at least two columns
+        key, value = parts
+        # Only process rows where the first and second column differ
+        if key != value:
+            # Split the second column by commas
+            values_list = value.split(",")
+            # Remove the key from the list if present
+            try:
+                values_list.remove(key)
+            except ValueError:
+                pass  # key might not be present; ignore if it's not
+            # Store the remaining values back as a comma-separated string
+            cov100_uniq_dict[key] = ",".join(values_list)
 
 # include vsearch 100%sim/96%cov cluster members (clusters_100.uc)
 print("Collecting duplicate sequences (cov96) ...")
