@@ -6,14 +6,6 @@ from pathlib import Path
 
 from Bio import SeqIO
 
-# Increase the CSV field size limit to handle very long fields
-max_int = sys.maxsize
-while True:
-    try:
-        csv.field_size_limit(max_int)
-        break
-    except OverflowError:
-        max_int = int(max_int / 10)
 
 parser = argparse.ArgumentParser(description="Script to create mapping file for duplicates")
 parser.add_argument("run_id", help="Need run id in numeric format!")
