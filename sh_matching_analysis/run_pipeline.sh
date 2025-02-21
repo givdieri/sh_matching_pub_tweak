@@ -40,7 +40,6 @@ if [ "$itsx_step" != "yes" ] && [ "$itsx_step" != "no" ]; then
   itsx_step="yes"
 fi
 THREADS=$(nproc)
-export $THREADS
 
 echo "ITSx - $itsx_step"
 echo "Remove userdir - $remove_userdir"
