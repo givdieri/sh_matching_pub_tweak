@@ -36,19 +36,14 @@ The script expects input files in FASTA format. Outdata files are described in [
     apptainer build sh_matching.sif sh_matching.def
     ```
 
-2. OPTIONAL: Copy SIF to HPC
-    ```console
-    scp sh_matching.sif example_hpc_user@example.com:
-    ```
-
-3. Create input, output and working data directories
+2. Create input, output and working data directories
     ```console
     mkdir userdir
     mkdir indata
     mkdir outdata
     ```
 
-4. Download FASTA dbs (https://app.plutof.ut.ee/filerepository/view/6884701) and create UDB formatted dbs
+3. Download FASTA dbs (https://app.plutof.ut.ee/filerepository/view/6884701) and create UDB formatted dbs
     ```console
     wget https://s3.hpc.ut.ee/plutof-public/original/d3d8b3de-83af-4fb5-b82b-359f7b730f84.zip
     mv d3d8b3de-83af-4fb5-b82b-359f7b730f84.zip sh_matching_data_udb_0_5.zip
@@ -67,7 +62,7 @@ The script expects input files in FASTA format. Outdata files are described in [
 
 **NB! The script expects input files in FASTA format, named as source_[run_id] and placed in indata/ directory. Outdata files are described in [sh_matching_analysis/readme.txt](https://github.com/TU-NHM/sh_matching_pub/blob/master/sh_matching_analysis/readme.txt).**
 
-5. Run the pipeline using SIF (example data with -
+4. Run the pipeline using SIF (example data with -
 
 * run_id=11
 * region=itsfull[default]|its2
@@ -79,6 +74,27 @@ The script expects input files in FASTA format. Outdata files are described in [
     ```console
     ./sh_matching.sif /sh_matching/run_pipeline.sh 11 itsfull yes yes no no
     ```
+5. For a metabarcoding flavour, rename your sourcefiles according to your pre-processed barcode files (e.g. barcode 28 could be source_28). Create a list of RUNID in a txt file and to run in parallel on mutliple nodes using SLURM, do:
+    ```console
+    srun --nodes=node_amount --ntasks=node_amount --label /bin/bash -c '
+      # Generate a timestamp
+      TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+      # Duplicate all output (stdout and stderr) to a log file and the screen:
+      exec > >(tee -a job_${SLURM_PROCID}_$(hostname)_${TIMESTAMP}.log) 2>&1
+      export OMP_NUM_THREADS=max_threads_per_node
+      # Each node processes X input files sequentially:
+      RUNID1=$(sed -n "$((SLURM_PROCID+1))p" source_numbers.txt)
+      RUNID2=$(sed -n "$((SLURM_PROCID*2+2))p" source_numbers.txt)
+      echo "Task $SLURM_PROCID on $(hostname) processing RUNID1: $RUNID1"
+      ./sh_matching.sif /sh_matching/run_pipeline.sh $RUNID1 itsfull no yes no no
+      echo "Task $SLURM_PROCID on $(hostname) processing RUNID1: $RUNID2"
+      ./sh_matching.sif /sh_matching/run_pipeline.sh $RUNID2 itsfull no yes no no
+    '
+    ```
+    The number of RUNID depends on how many input files you want to process per node. For example using 7 nodes, to process 14 source files you would need 14/7=2 RUNIDs
+
+6. From the output, sequences can be merged across barcodes/input files based on SH-code. That is not the case for new/non-existing clusters. Those we need to gather from output files. Running [filter_newsh.py]() iterates output files, collects sequences that are either new_singletons or new_sh at the 0.5% level, write them to a single file and appends RUNID information to the fasta headers to seperate them out later.
+You can use the file as a new input file for SH-matching and use the preferred cluster level resulting from this SH-matching to finalize your OTU-table.
 
 ## Citing
 
