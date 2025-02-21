@@ -16,6 +16,7 @@ name = args.name
 name_folder = name + "_folder"
 if not run_id.isdigit():
     raise ValueError("Run id is not numeric", run_id)
+threads = int(os.getenv("THREADS", os.cpu_count()))
 
 user_dir = Path(f"{os.getcwd()}/userdir/{run_id}")
 
@@ -48,7 +49,7 @@ with open(cl_tmp_file) as f:
         out_code_url_005 = out_dir / out_code_005
 
         # usearch -calc_distmx ClusterX -tabbedout mx_03.txt -maxdist 0.03 -threads 8
-        usearch_cmd_1 = subprocess.run([usearch_program, "-calc_distmx", code_url, "-tabbedout", mx_code_url, "-maxdist", "0.03", "-threads", "8"], stdout=subprocess.DEVNULL)
+        usearch_cmd_1 = subprocess.run([usearch_program, "-calc_distmx", code_url, "-tabbedout", mx_code_url, "-maxdist", "0.03", "-threads", str(threads)], stdout=subprocess.DEVNULL)
         
         # usearch -cluster_aggd mx_03.txt -clusterout clusters.txt -id 0.97 -linkage min
         usearch_cmd_2 = subprocess.run([usearch_program, "-cluster_aggd", mx_code_url, "-clusterout", out_code_url_03, "-id", "0.97", "-linkage", "min"], stdout=subprocess.DEVNULL)
