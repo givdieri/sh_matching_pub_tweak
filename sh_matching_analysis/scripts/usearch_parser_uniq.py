@@ -35,15 +35,25 @@ seq_counter_all = 0  # sequence count with duplicates included
 print("Collecting duplicate sequences (cov100) ...")
 cov100_uniq_dict = {}
 with open(cov100_uniq_file, "r") as f, open(duplic_seqs_file, "w") as dupl:
-    dataReader = csv.reader(f, delimiter="\t")
-    for row in dataReader:
+    for line in f:
         seq_counter += 1
-        # include only those sequences where duplicates are present
-        if row[0] != row[1]:
-            cov100_list = row[1].split(",")
-            cov100_list.remove(row[0])
+        # Remove trailing newline characters
+        line = line.rstrip("\n")
+        # Split on the first tab only (guarantees two columns)
+        parts = line.split("\t", 1)
+        if len(parts) < 2:
+            continue  # skip lines that don't have two columns
+        key, value = parts
+        # Process only rows where the key and value differ
+        if key != value:
+            # Split the second column by commas
+            cov100_list = value.split(",")
+            try:
+                cov100_list.remove(key)
+            except ValueError:
+                pass  # key might not be in the list; ignore if it's not
             for seq in cov100_list:
                 seq_counter_all += 1
-                dupl.write(str(seq) + "\t" + str(row[0]) + "\t\n")
-
+                dupl.write(f"{seq}\t{key}\t\n")
+                
 logging.info(f"USEARCH_PARSER_UNIQ\tNumber of sequences at the end: {seq_counter} and {seq_counter_all}")
