@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Fcntl qw(:flock);  # Import LOCK_SH and other flock constants
 
 # input data
 my $run_id = $ARGV[0];
@@ -13,24 +14,38 @@ my $user_dir = "userdir/$run_id";
 my $matches_dir = $user_dir . "/matches";
 
 my $sh2compound_file = "/sh_matching/data/sh2compound_mapping.txt";
-my $shs_file = "/sh_matching/data/shs_out.txt";
-my $compound_file = "/sh_matching/data/compounds_out.txt";
+my $shs_file         = "/sh_matching/data/shs_out.txt";
+my $compound_file    = "/sh_matching/data/compounds_out.txt";
 my $centroid2sh_file = "/sh_matching/data/centroid2sh_mappings.txt";
 
-my $accno_seqs_file = $user_dir . "/" . "source_" . $run_id . "_names";
+my $accno_seqs_file      = $user_dir . "/" . "source_" . $run_id . "_names";
 # read in duplicates from vsearch --fastx_uniques and vsearch length coverage clustering (seq_id, parent_seq_id, cluster_name)
 my $duplicate_seqs_file1 = $user_dir . "/" . "duplic_seqs.txt";
 # read in duplicates from 0.5% RepS clustering (RepS_id, duplicate_seq_id)
 my $duplicate_seqs_file2 = $user_dir . "/" . "seq_mappings.txt";
 
-my %threshold_hash = ("03" => "3.0", "025" => "2.5", "02" => "2.0", "015" => "1.5", "01" => "1.0", "005" => "0.5");
-my %threshold_coded_hash = ("03" => "1", "025" => "4", "02" => "2", "015" => "5", "01" => "3", "005" => "6");
+my %threshold_hash = (
+    "03"  => "3.0",
+    "025" => "2.5",
+    "02"  => "2.0",
+    "015" => "1.5",
+    "01"  => "1.0",
+    "005" => "0.5"
+);
+my %threshold_coded_hash = (
+    "03"  => "1",
+    "025" => "4",
+    "02"  => "2",
+    "015" => "5",
+    "01"  => "3",
+    "005" => "6"
+);
 
 # get compound and SH mappings
 my %sh_ucl_hash = ();
-open (SH_2_COMPOUND, $sh2compound_file) or die "Cannot open $sh2compound_file: $!";
+open (SH_2_COMPOUND, $sh2compound_file);
 while (<SH_2_COMPOUND>) {
-    chomp;
+    chomp $_;
     my @fields = split("\t", $_);
     $sh_ucl_hash{$fields[0]} = $fields[1];
 }
@@ -38,9 +53,9 @@ close SH_2_COMPOUND;
 
 # get refs2sh mappings for other thresholds
 my %seq2sh_o_hash = ();
-open (SEQ_2_SH_O, $centroid2sh_file) or die "Cannot open $centroid2sh_file: $!";
+open (SEQ_2_SH_O, $centroid2sh_file);
 while (<SEQ_2_SH_O>) {
-    chomp;
+    chomp $_;
     my @fields = split("\t", $_);
     $seq2sh_o_hash{$fields[2]}{$fields[0]} = $fields[1];
 }
@@ -48,9 +63,9 @@ close SEQ_2_SH_O;
 
 # read in SH info from shs_out.txt
 my %sh_taxonomy_hash = ();
-open (INFILE_SHS, $shs_file) or die "Cannot open $shs_file: $!";
+open (INFILE_SHS, $shs_file);
 while (<INFILE_SHS>) {
-    chomp;
+    chomp $_;
     my @fields = split("\t", $_);
     $sh_taxonomy_hash{$fields[0]} = $fields[1];
 }
@@ -58,56 +73,60 @@ close INFILE_SHS;
 
 # read in compound info from compounds_out.txt
 my %ucl_taxonomy_hash = ();
-open (INFILE_COMPOUNDS, $compound_file) or die "Cannot open $compound_file: $!";
+open (INFILE_COMPOUNDS, $compound_file);
 while (<INFILE_COMPOUNDS>) {
-    chomp;
+    chomp $_;
     my @fields = split("\t", $_);
     $ucl_taxonomy_hash{$fields[1]} = $fields[2];
 }
 close INFILE_COMPOUNDS;
 
-# read in duplicate seqs 1 using a lexical filehandle
+# read in duplicate seqs 1 with file locking
 my %seq_duplicate_hash = ();
-open (my $dup_fh1, '<', $duplicate_seqs_file1) or die "Cannot open $duplicate_seqs_file1: $!";
-while (<$dup_fh1>) {
-    chomp;
+open (INFILE_DUPL, $duplicate_seqs_file1) or die "Cannot open $duplicate_seqs_file1: $!";
+flock(INFILE_DUPL, LOCK_SH) or die "Cannot lock $duplicate_seqs_file1: $!";
+while (<INFILE_DUPL>) {
+    chomp $_;
     my @fields = split("\t", $_);
     if (!defined($seq_duplicate_hash{$fields[1]})) {
         $seq_duplicate_hash{$fields[1]} = $fields[0];
     } else {
-        $seq_duplicate_hash{$fields[1]} .= "," . $fields[0];
+        $seq_duplicate_hash{$fields[1]} = $seq_duplicate_hash{$fields[1]} . "," . $fields[0];
     }
 }
-close $dup_fh1;
+close INFILE_DUPL;
 
-# read in duplicate seqs 2 using a separate lexical filehandle
-open (my $dup_fh2, '<', $duplicate_seqs_file2) or die "Cannot open $duplicate_seqs_file2: $!";
-while (<$dup_fh2>) {
-    chomp;
-    my @fields = split(",", $_);
-    if (!defined($seq_duplicate_hash{$fields[0]})) {
-        if (defined($seq_duplicate_hash{$fields[1]})) {
-            $seq_duplicate_hash{$fields[0]} = $fields[1] . "," . $seq_duplicate_hash{$fields[1]};
-            delete($seq_duplicate_hash{$fields[1]});
+# read in duplicate seqs 2 with file locking
+if (-e $duplicate_seqs_file2) {
+    open (INFILE_DUPL, $duplicate_seqs_file2) or die "Cannot open $duplicate_seqs_file2: $!";
+    flock(INFILE_DUPL, LOCK_SH) or die "Cannot lock $duplicate_seqs_file2: $!";
+    while (<INFILE_DUPL>) {
+        chomp $_;
+        my @fields = split(",", $_);
+        if (!defined($seq_duplicate_hash{$fields[0]})) {
+            if (defined($seq_duplicate_hash{$fields[1]})) {
+                $seq_duplicate_hash{$fields[0]} = $fields[1] . "," . $seq_duplicate_hash{$fields[1]};
+                delete($seq_duplicate_hash{$fields[1]});
+            } else {
+                $seq_duplicate_hash{$fields[0]} = $fields[1];
+            }
         } else {
-            $seq_duplicate_hash{$fields[0]} = $fields[1];
-        }
-    } else {
-        if (defined($seq_duplicate_hash{$fields[1]})) {
-            $seq_duplicate_hash{$fields[0]} .= "," . $fields[1] . "," . $seq_duplicate_hash{$fields[1]};
-            delete($seq_duplicate_hash{$fields[1]});
-        } else {
-            $seq_duplicate_hash{$fields[0]} .= "," . $fields[1];
+            if (defined($seq_duplicate_hash{$fields[1]})) {
+                $seq_duplicate_hash{$fields[0]} = $seq_duplicate_hash{$fields[0]} . "," . $fields[1] . "," . $seq_duplicate_hash{$fields[1]};
+                delete($seq_duplicate_hash{$fields[1]});
+            } else {
+                $seq_duplicate_hash{$fields[0]} = $seq_duplicate_hash{$fields[0]} . "," . $fields[1];
+            }
         }
     }
+    close INFILE_DUPL;
 }
-close $dup_fh2;
 
 # read in sequence metadata from csv file
 my %seq_id_hash = ();
-open (INFILE_ACCNOS, $accno_seqs_file) or die "Cannot open $accno_seqs_file: $!";
+open (INFILE_ACCNOS, $accno_seqs_file);
 while (<INFILE_ACCNOS>) {
-    chomp;
+    chomp $_;
     my @fields = split("\t", $_);
     my $seq_id = $fields[1];
     $seq_id =~ s/i//g;
@@ -132,14 +151,14 @@ foreach my $threshold (@thresholds) {
     my %new_sh_hash_th = ();
 
     # open matches file
-    open (MATCHES, $matches_file) or die "Cannot open $matches_file: $!";
-    open (MATCHES_OUT, ">", $matches_outfile) or die "Cannot open $matches_outfile: $!";
+    open (MATCHES, $matches_file);
+    open (MATCHES_OUT, ">", $matches_outfile);
 
     # print header
     print MATCHES_OUT $header;
 
     while (<MATCHES>) {
-        chomp;
+        chomp $_;
         my @fields = split("\t", $_);
         my $seq_id = $fields[0];
         $seq_id =~ s/i//g;
@@ -233,11 +252,9 @@ foreach my $threshold (@thresholds) {
 
     print "\nNo. of sequences present in SHs ($threshold): " . $present_counter_th . "\n";
     print "No. of sequences in new SHs ($threshold): " . $new_sh_seq_counter_th . "\n";
-    print "Hello from Glen\n";
     print "No. of new SHs ($threshold): " . $new_sh_counter_th . "\n";
     print "No. of new singleton SHs ($threshold): " . $new_singleton_counter_th . "\n";
 }
-
 
 print "\nTotal no. of new SHs: " . $new_sh_counter . "\n";
 print "Total no. of new singleton SHs: " . $new_singleton_counter . "\n\n";
