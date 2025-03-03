@@ -73,7 +73,7 @@ The script expects input files in FASTA format. Outdata files are described in [
 * conduct_usearch_05_step=yes|no[default] - flag indicating whether to conduct the usearch complete-linkage clustering at 0.5% dissimilarity (default, "no")
 
     ```console
-    ./sh_matching.sif /sh_matching/run_pipeline.sh 11 itsfull yes yes no no
+    ./sh_matching_tweak.sif /sh_matching/run_pipeline.sh 11 itsfull yes yes no no  2>&1 | tee sh_matching.log
     ```
 5. For a metabarcoding flavour, rename your sourcefiles according to your pre-processed barcode files (e.g. barcode 28 could be source_28). Create a list of RUNID in a txt file and to run in parallel on mutliple nodes using SLURM, do:
     ```console
