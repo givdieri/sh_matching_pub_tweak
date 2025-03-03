@@ -1,5 +1,10 @@
 **!! This fork is in development for trying out some semi-streamlined metabarcoding workflow !! Please use and [cite the main branch of SH-matching](https://github.com/TU-NHM/sh_matching_pub) if you intend to use this tool!!.**
 
+Adjustments include:
+-using all available threads
+-usearch11 64 bit version (for large clusters)
+-replaced some csv dictionaries as they run into field limits
+
 # SH MATCHING analysis tool
 
 [![run with singularity](https://img.shields.io/badge/run%20with-singularity-blue?style=flat&logo=singularity)](https://sylabs.io/docs/)
