@@ -26,7 +26,7 @@ A base Ubuntu 20 Singularity container with basic Python packages such as HMMER3
     wget https://github.com/rcedgar/usearch_old_binaries/raw/refs/heads/main/bin/usearch11.0.667_i86linux64
     gunzip usearch11.0.667_i86linux64
     mv usearch11.0.667_i86linux64 /sh_matching/programs/usearch
-    chmod +x /sh_matching/programs/usearch
+    chmod 0111 /sh_matching/programs/usearch
 
     # Download and install VSEARCH 2.22.1
     wget https://github.com/torognes/vsearch/releases/download/v2.22.1/vsearch-2.22.1-linux-x86_64.tar.gz
