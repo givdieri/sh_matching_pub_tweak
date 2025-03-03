@@ -30,8 +30,9 @@ A base Ubuntu 20 Singularity container with basic Python packages such as HMMER3
 
     # usearch 11.0.667
     wget https://www.drive5.com/downloads/usearch11.0.667_i86linux32.gz
-    gunzip usearch11.0.667_i86linux32.gz
-    mv usearch11.0.667_i86linux32 /sh_matching/programs/usearch
+    wget https://github.com/rcedgar/usearch_old_binaries/raw/refs/heads/main/bin/usearch11.0.667_i86linux64
+    gunzip usearch11.0.667_i86linux64
+    mv usearch11.0.667_i86linux64 /sh_matching/programs/usearch
     chmod 0111 /sh_matching/programs/usearch
 
     # vsearch 2.22.1
