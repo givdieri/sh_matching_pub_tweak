@@ -34,7 +34,7 @@ The script expects input files in FASTA format. Outdata files are described in [
     mkdir -p $APPTAINER_TMPDIR
     chmod 777 /tmp
     cd sh_matching_pub_tweak/
-    apptainer build sh_matching_tweak.sif sh_matching.def
+    apptainer build sh_matching_tweak.sif sh_matching.def 2>&1 | tee build.log
     ```
 
 2. Create input, output and working data directories
