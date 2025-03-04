@@ -3,6 +3,16 @@ import csv
 import os
 from pathlib import Path
 
+# for debugging add echo of subscript name
+if '__file__' in globals():
+    script_name = os.path.basename(__file__)
+else:
+    script_name = 'Interactive session or unknown'
+
+echo_message = f"Running script: {script_name}"
+print(echo_message)
+# echo done 
+
 parser = argparse.ArgumentParser(description="Script to output HTML output for matches")
 parser.add_argument("run_id", help="Need run id in numeric format!")
 parser.add_argument("threshold", help="Need threshold numeric format!")
