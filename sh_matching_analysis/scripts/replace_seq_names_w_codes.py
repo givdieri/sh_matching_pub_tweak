@@ -5,6 +5,16 @@ from pathlib import Path
 
 from Bio import SeqIO
 
+# for debugging add echo of subscript name
+if '__file__' in globals():
+    script_name = os.path.basename(__file__)
+else:
+    script_name = 'Interactive session or unknown'
+
+echo_message = f"Running script: {script_name}"
+print(echo_message)
+# echo done 
+
 parser = argparse.ArgumentParser(description="Script to replace original seq. ids with unique internal ids.")
 parser.add_argument("run_id", help="Need run id in numeric format!")
 args = parser.parse_args()
