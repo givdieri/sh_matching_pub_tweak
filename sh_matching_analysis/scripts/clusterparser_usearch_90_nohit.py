@@ -7,6 +7,16 @@ from pathlib import Path
 
 from Bio import SeqIO
 
+# for debugging add echo of subscript name
+if '__file__' in globals():
+    script_name = os.path.basename(__file__)
+else:
+    script_name = 'Interactive session or unknown'
+
+echo_message = f"Running script: {script_name}"
+print(echo_message)
+# echo done 
+
 csv.field_size_limit(sys.maxsize)
 
 parser = argparse.ArgumentParser(description="Script to parse USEARCH clustering output (90) for next step SH clustering")
