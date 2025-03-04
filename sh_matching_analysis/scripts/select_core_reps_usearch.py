@@ -8,6 +8,16 @@ import sys
 from Bio import SeqIO
 from pathlib import Path
 
+# for debugging add echo of subscript name
+if '__file__' in globals():
+    script_name = os.path.basename(__file__)
+else:
+    script_name = 'Interactive session or unknown'
+
+echo_message = f"Running script: {script_name}"
+print(echo_message)
+# echo done 
+
 csv.field_size_limit(sys.maxsize)
 
 parser = argparse.ArgumentParser(description="Script to select 0.5 percent RepS from usearch calc_distm_+cluster_aggd clustering")
