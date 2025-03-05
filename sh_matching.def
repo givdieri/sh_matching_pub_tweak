@@ -1,10 +1,10 @@
 # A base Ubuntu 20 Singularity container with basic Python packages
 
 BootStrap: docker
-From: ubuntu:20.04
+From: ubuntu:22.04
 
 %help
-A base Ubuntu 20 Singularity container with basic Python packages such as HMMER3 and Biopython.
+A base Ubuntu 22 Singularity container with basic Python packages such as HMMER3 and Biopython.
 
 %post
     # Set non-interactive mode for apt-get and debconf
@@ -30,11 +30,11 @@ A base Ubuntu 20 Singularity container with basic Python packages such as HMMER3
     mv usearch11.0.667_i86linux64 /sh_matching/programs/usearch
     chmod 0111 /sh_matching/programs/usearch
 
-    # Download and install VSEARCH 2.22.1
-    wget https://github.com/torognes/vsearch/releases/download/v2.22.1/vsearch-2.22.1-linux-x86_64.tar.gz
-    tar -xvf vsearch-2.22.1-linux-x86_64.tar.gz -C /sh_matching/programs/
-    mv /sh_matching/programs/vsearch-2.22.1-linux-x86_64 /sh_matching/programs/vsearch
-    rm vsearch-2.22.1-linux-x86_64.tar.gz
+    # Download and install VSEARCH 2.30.0
+    wget https://github.com/torognes/vsearch/releases/download/v2.30.0/vsearch-2.30.0-linux-x86_64.tar.gz
+    tar -xvf vsearch-2.30.0-linux-x86_64.tar.gz -C /sh_matching/programs/
+    mv /sh_matching/programs/vsearch-2.30.0-linux-x86_64 /sh_matching/programs/vsearch
+    rm vsearch-2.30.0-linux-x86_64.tar.gz
 
     # Download and install ITSx 1.1.3
     wget https://microbiology.se/sw/ITSx_1.1.3.tar.gz
@@ -52,8 +52,9 @@ A base Ubuntu 20 Singularity container with basic Python packages such as HMMER3
     cd /
 
     # Download and extract database files
-    wget https://s3.hpc.ut.ee/plutof-public/original/5dcbe93a-b50c-4ff5-8898-528160c4e593.zip
-    mv 5dcbe93a-b50c-4ff5-8898-528160c4e593.zip sh_matching_data_0_5.zip
+    # Get database files (https://app.plutof.ut.ee/filerepository/view/7414635)
+    wget https://s3.hpc.ut.ee/plutof-public/original/fc513ab4-beba-48f7-9cba-71968fe108b5.zip
+    mv fc513ab4-beba-48f7-9cba-71968fe108b5.zip sh_matching_data_0_5.zip
     unzip sh_matching_data_0_5.zip -d /sh_matching/
     rm sh_matching_data_0_5.zip
 
