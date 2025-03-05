@@ -5,12 +5,12 @@ set -euo pipefail
 # Configuration (manually set variables)
 # -------------------------------------------------------------------
 THREADS=63                   # Number of threads to use per task
-INPUT_FILE="/scratch/gent/458/vsc45818/barcode_233P1small.fasta"   # Input FASTA file
-MAX_SEQUENCES=40             # Maximum number of sequences per split file
+INPUT_FILE="path/meta_SH/barcode_230P1.fasta"   # Input FASTA file
+MAX_SEQUENCES=50000          # Maximum number of sequences per split file
 MODE="sequential"            # Execution mode: "parallel" or "sequential"
 NODES=1                      # Number of nodes (only used in parallel mode)
-SH_MATCHING_DIR="/scratch/gent/458/vsc45818/sh_matching_pub_echo"  # Directory for SH-matching files and tools
-OUTPUT_DIR="/scratch/gent/458/vsc45818/tryout"  # Directory for output files
+SH_MATCHING_DIR="path/meta_SH/sh_matching_pub"  # Directory for SH-matching files and tools
+OUTPUT_DIR="path/meta_SH/first_tryout"  # Directory for output files
 
 # New parameter: choose whether to re-run unmatched sequences ("yes" or "no")
 RERUN_UNMATCHED="yes"
@@ -76,12 +76,13 @@ elif (( NUM_FILES > 50 )); then
   echo "Warning: Splitting into $NUM_FILES files. Are you certain about your max sequence number?"
 fi
 
+# Use a file-wide search for "sample=" and print the first five headers for debugging.
 SAMPLE_FLAG=0
-if grep '^>' "$INPUT_FILE" | head -10 | grep -q "sample="; then
+if grep -m 1 "sample=" "$INPUT_FILE" > /dev/null; then
   SAMPLE_FLAG=1
-  echo "Detected 'sample=' in first 10 sequences; sample info will be mapped."
+  echo "Detected 'sample=' in the input file; sample info will be mapped."
 else
-  echo "No 'sample=' string detected in the first 10 sequences."
+  echo "No 'sample=' string detected in the input file."
 fi
 
 TMP_SPLIT_DIR=$(mktemp -d)
@@ -110,13 +111,18 @@ BEGIN {
     print $0 > current_file;
     sample = "";
     if (sample_flag == 1) {
-        if (match($0, /sample=[^[:space:]]+/)) {
-            sample = substr($0, RSTART, RLENGTH);
+        n = split($0, fields, ";")
+        for (i = 1; i <= n; i++) {
+            if (fields[i] ~ /^sample=/) {
+                sub(/^sample=/, "", fields[i])
+                sample = fields[i]
+                break
+            }
         }
     }
     # Derive source name from current_file (basename)
     srcname = current_file; sub(".*/", "", srcname);
-    # Initially, set match status to "unmatched"
+    # Print mapping: the header, the extracted sample info, etc.
     print input_file "\t" current_file "\t" $0 "\t" sample "\t" srcname "\tinitial_run\tunmatched" >> mapping_file;
     next;
 }
@@ -128,14 +134,20 @@ END {
 }' "$INPUT_FILE"
 
 echo "Moving split files to $SH_MATCHING_DIR/indata..."
+echo "from $TMP_SPLIT_DIR"
 mv "$TMP_SPLIT_DIR"/source_* "$SH_MATCHING_DIR/indata/"
-rmdir "$TMP_SPLIT_DIR"
+rm -r "$TMP_SPLIT_DIR"  # Remove the temporary split directory
 
 # -------------------------------------------------------------------
-# Prepare List of Source Files (from mapping) to Process
+# Prepare List of Unique Source Files (from mapping) to Process
 # -------------------------------------------------------------------
-source_ids=$(awk 'NR>1 {print $2}' "$MAPPING_FILE" | xargs -n 1 basename | sort -u)
-echo "Unique source IDs to process: $source_ids"
+# Store unique IDs in a Bash array using AWK's associative array (avoids sort)
+mapfile -t source_ids < <(awk 'NR>1 {
+    id = $2;
+    sub(".*/", "", id);
+    if (!seen[id]++) print id;
+}' "$MAPPING_FILE")
+echo "Unique source IDs to process: ${source_ids[*]}"
 
 # -------------------------------------------------------------------
 # (5) Running SH-Matching Pipeline (Initial Run)
@@ -143,7 +155,7 @@ echo "Unique source IDs to process: $source_ids"
 if [[ "$MODE" == "sequential" ]]; then
   echo "Running in sequential mode..."
   pushd "$SH_MATCHING_DIR" > /dev/null
-  for id in $source_ids; do
+  for id in "${source_ids[@]}"; do
     num_id="${id#source_}"
     echo "Processing $id sequentially with run id $num_id..."
     ./sh_matching_echo.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes no no
@@ -196,7 +208,7 @@ for extracted_dir in "$TMP_OUT"/*; do
 done
 
 echo "Concatenation complete. Final TSV output in $output_file"
-rm -rf "$TMP_OUT"
+rm -rf "$TMP_OUT"  # Remove the temporary output directory
 
 # -------------------------------------------------------------------
 # (6.5) Re-run Pipeline for Unmatched Sequences (if enabled)
@@ -220,7 +232,6 @@ if [[ "$RERUN_UNMATCHED" == "yes" ]]; then
   python3 - <<EOF
 import sys
 from Bio import SeqIO
-# Assign the shell-expanded value to a Python variable.
 rerun_fasta = "$rerun_fasta"
 unmatched_ids = set(line.strip() for line in open("$unmatched_ids_file"))
 count = 0
@@ -235,7 +246,7 @@ print(f"Extracted {count} unmatched sequences to {rerun_fasta}")
 EOF
   
   # Determine new run id: one more than the number of initial run files
-  initial_count=$(echo "$source_ids" | wc -l)
+  initial_count=${#source_ids[@]}
   rerun_id=$(printf "%03d" $((initial_count + 1)))
   echo "Using run id $rerun_id for unmatched re-run."
   
@@ -281,6 +292,7 @@ EOF
   else
       echo "Re-run zip file not found: $rerun_zip"
       rerun_output=""
+      rm -rf "$TMP_OUT_RERUN"  # Ensure removal even if zip file is missing
   fi
   
   echo "Creating new total TSV file..."
@@ -311,7 +323,7 @@ if [[ -f run_IDS_1.txt ]]; then
   echo "Removed run_IDS_1.txt."
 fi
 
-for id in $source_ids; do
+for id in "${source_ids[@]}"; do
   target="$SH_MATCHING_DIR/indata/$id"
   if [[ -f "$target" ]]; then
     rm -f "$target"
