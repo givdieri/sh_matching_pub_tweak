@@ -3,7 +3,9 @@
 Adjustments include:
 -using all available threads.  
 -usearch11 64 bit version (for large clusters).  
--replaced some csv dictionaries as they run into field limits.  
+-replaced some csv dictionaries as they run into field limits.
+-added script for re-running unmatched seqs togheter (detect larger 'new_SH' across input files)
+-increased echo statements
 
 # SH MATCHING analysis tool
 
