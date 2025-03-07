@@ -6,6 +6,7 @@ Adjustments include:
 -replaced some csv dictionaries as they run into field limits.  
 -added script for re-running unmatched seqs togheter (detect larger 'new_SH' across input files).  
 -increased echo statements.  
+-script to run a fasta file with automatic splitting, possibility to run split files in parallel on multiple nodes
 
 # SH MATCHING analysis tool
 
