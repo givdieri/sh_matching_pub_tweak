@@ -2,21 +2,51 @@
 set -euo pipefail
 
 # -------------------------------------------------------------------
-# Configuration (manually set variables)
+# Usage function
 # -------------------------------------------------------------------
-THREADS=63                   # Number of threads to use per task
-INPUT_FILE="path/meta_SH/barcode_230P1.fasta"   # Input FASTA file
-MAX_SEQUENCES=50000          # Maximum number of sequences per split file
-MODE="sequential"            # Execution mode: "parallel" or "sequential"
-NODES=1                      # Number of nodes (only used in parallel mode)
-SH_MATCHING_DIR="path/meta_SH/sh_matching_pub"  # Directory for SH-matching files and tools
-OUTPUT_DIR="path/meta_SH/first_tryout"  # Directory for output files
+usage() {
+  echo "Usage: $0 -i INPUT_FILE -s SH_MATCHING_DIR -o OUTPUT_DIR [-t THREADS] [-m MAX_SEQUENCES] [-M MODE] [-n NODES] [-r RERUN_UNMATCHED]"
+  echo ""
+  echo "  -i   Path to the input FASTA file"
+  echo "  -s   Directory for SH-matching files and tools"
+  echo "  -o   Output directory for results"
+  echo "  -t   Number of threads per task (default: all available cores via nproc)"
+  echo "  -m   Maximum sequences per split file (default: 30000)"
+  echo "  -M   Execution mode: \"sequential\" or \"parallel\" (default: sequential)"
+  echo "  -n   Number of nodes (used only in parallel mode, default: 1)"
+  echo "  -r   Re-run unmatched sequences: \"yes\" or \"no\" (default: yes)"
+  exit 1
+}
 
-# New parameter: choose whether to re-run unmatched sequences ("yes" or "no")
+# -------------------------------------------------------------------
+# Parse command-line arguments with getopts
+# -------------------------------------------------------------------
+THREADS=$(nproc)
+MAX_SEQUENCES=30000
+MODE="sequential"
+NODES=1
 RERUN_UNMATCHED="yes"
 
+while getopts "i:t:m:M:n:s:o:r:" opt; do
+  case "$opt" in
+    i) INPUT_FILE="$OPTARG" ;;
+    t) THREADS="$OPTARG" ;;
+    m) MAX_SEQUENCES="$OPTARG" ;;
+    M) MODE="$OPTARG" ;;
+    n) NODES="$OPTARG" ;;
+    s) SH_MATCHING_DIR="$OPTARG" ;;
+    o) OUTPUT_DIR="$OPTARG" ;;
+    r) RERUN_UNMATCHED="$OPTARG" ;;
+    *) usage ;;
+  esac
+done
+
+if [[ -z "${INPUT_FILE:-}" || -z "${SH_MATCHING_DIR:-}" || -z "${OUTPUT_DIR:-}" ]]; then
+  usage
+fi
+
 # -------------------------------------------------------------------
-# Check and Clear OUTPUT_DIR if it exists
+# Logging and initial configuration
 # -------------------------------------------------------------------
 if [[ -d "$OUTPUT_DIR" ]]; then
   echo "WARNING: Output directory $OUTPUT_DIR already exists. Clearing its contents..."
@@ -24,9 +54,6 @@ if [[ -d "$OUTPUT_DIR" ]]; then
 fi
 mkdir -p "$OUTPUT_DIR"
 
-# -------------------------------------------------------------------
-# Logging: Create a timestamp-based log file in the OUTPUT_DIR
-# -------------------------------------------------------------------
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 INPUT_BASENAME=$(basename "$INPUT_FILE")
 LOG_FILE="$OUTPUT_DIR/job_${TIMESTAMP}_${INPUT_BASENAME}.log"
@@ -61,6 +88,23 @@ for sub in "${required_subdirs[@]}"; do
 done
 
 # -------------------------------------------------------------------
+# (A) Determine Offset for New Source IDs in indata
+# -------------------------------------------------------------------
+existing_files=("$SH_MATCHING_DIR/indata/source_"*)
+max_existing=0
+for file in "${existing_files[@]}"; do
+  if [[ -f "$file" ]]; then
+    fname=$(basename "$file")
+    id_num=$((10#${fname#source_}))
+    if (( id_num > max_existing )); then
+      max_existing=$id_num
+    fi
+  fi
+done
+offset=$((max_existing + 10))
+echo "Offset for new source ids is $offset"
+
+# -------------------------------------------------------------------
 # (2) Sequence Counting and FASTA File Subdivision
 # -------------------------------------------------------------------
 TOTAL_SEQS=$(grep -c '^>' "$INPUT_FILE")
@@ -76,7 +120,6 @@ elif (( NUM_FILES > 50 )); then
   echo "Warning: Splitting into $NUM_FILES files. Are you certain about your max sequence number?"
 fi
 
-# Use a file-wide search for "sample=" and print the first five headers for debugging.
 SAMPLE_FLAG=0
 if grep -m 1 "sample=" "$INPUT_FILE" > /dev/null; then
   SAMPLE_FLAG=1
@@ -87,7 +130,6 @@ fi
 
 TMP_SPLIT_DIR=$(mktemp -d)
 MAPPING_FILE="$OUTPUT_DIR/mapping_${TIMESTAMP}.txt"
-# New header includes MATCH_STATUS_005 column.
 echo -e "INPUT_FILE\tSOURCE_FILE\tHEADER\tSAMPLE_INFO\tSOURCE_NAME\tRUN_TYPE\tMATCH_STATUS_005" > "$MAPPING_FILE"
 
 awk -v max_seq="$MAX_SEQUENCES" \
@@ -95,17 +137,14 @@ awk -v max_seq="$MAX_SEQUENCES" \
     -v prefix="source_" \
     -v mapping_file="$MAPPING_FILE" \
     -v input_file="$INPUT_FILE" \
-    -v sample_flag="$SAMPLE_FLAG" '
-BEGIN {
-    seqCount = 0;
-    fileCount = 0;
-}
-# Process header lines
+    -v sample_flag="$SAMPLE_FLAG" \
+    -v offset="$offset" '
+BEGIN { seqCount = 0; fileCount = 0; }
 /^>/ {
     seqCount++;
     if ((seqCount - 1) % max_seq == 0) {
         fileCount++;
-        id = sprintf("%03d", fileCount);
+        id = sprintf("%03d", fileCount + offset);
         current_file = outdir "/" prefix id;
     }
     print $0 > current_file;
@@ -115,39 +154,31 @@ BEGIN {
         for (i = 1; i <= n; i++) {
             if (fields[i] ~ /^sample=/) {
                 sub(/^sample=/, "", fields[i])
-                sample = fields[i]
-                break
+                sample = fields[i];
+                break;
             }
         }
     }
-    # Derive source name from current_file (basename)
     srcname = current_file; sub(".*/", "", srcname);
-    # Print mapping: the header, the extracted sample info, etc.
     print input_file "\t" current_file "\t" $0 "\t" sample "\t" srcname "\tinitial_run\tunmatched" >> mapping_file;
     next;
 }
-{
-    print $0 >> current_file;
-}
-END {
-    print "Created " fileCount " split files." > "/dev/stderr";
-}' "$INPUT_FILE"
+{ print $0 >> current_file; }
+END { print "Created " fileCount " split files." > "/dev/stderr"; }
+' "$INPUT_FILE"
 
 echo "Moving split files to $SH_MATCHING_DIR/indata..."
-echo "from $TMP_SPLIT_DIR"
 mv "$TMP_SPLIT_DIR"/source_* "$SH_MATCHING_DIR/indata/"
-rm -r "$TMP_SPLIT_DIR"  # Remove the temporary split directory
+rm -r "$TMP_SPLIT_DIR"
 
 # -------------------------------------------------------------------
 # Prepare List of Unique Source Files (from mapping) to Process
 # -------------------------------------------------------------------
-# Store unique IDs in a Bash array using AWK's associative array (avoids sort)
-mapfile -t source_ids < <(awk 'NR>1 {
-    id = $2;
-    sub(".*/", "", id);
-    if (!seen[id]++) print id;
-}' "$MAPPING_FILE")
+mapfile -t source_ids < <(awk 'NR>1 { id = $2; sub(".*/", "", id); if (!seen[id]++) print id }' "$MAPPING_FILE")
 echo "Unique source IDs to process: ${source_ids[*]}"
+
+# Export SOURCE_IDS so that srun tasks can reconstruct the array.
+export SOURCE_IDS="${source_ids[*]}"
 
 # -------------------------------------------------------------------
 # (5) Running SH-Matching Pipeline (Initial Run)
@@ -158,34 +189,75 @@ if [[ "$MODE" == "sequential" ]]; then
   for id in "${source_ids[@]}"; do
     num_id="${id#source_}"
     echo "Processing $id sequentially with run id $num_id..."
-    ./sh_matching_echo.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes no no
+    ./sh_matching_echo.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
   done
   popd > /dev/null
+elif [[ "$MODE" == "parallel" ]]; then
+  if (( NODES <= 1 )); then
+    echo "Error: Parallel mode requires more than 1 node. Skipping pipeline execution."
+  else
+    echo "Running in parallel mode on $NODES nodes..."
+    pushd "$SH_MATCHING_DIR" > /dev/null
+    srun --nodes="$NODES" --ntasks="$NODES" --export=ALL --label /bin/bash -c '
+      TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+      echo "current time is $TIMESTAMP"
+      export OMP_NUM_THREADS='"$THREADS"'
+      # Reconstruct the source IDs array from the environment variable
+      read -r -a ids <<< "$SOURCE_IDS"
+      echo "DEBUG: Source IDs received: ${ids[@]}"
+      TOTAL_FILES=${#ids[@]}
+      echo "DEBUG: TOTAL_FILES = $TOTAL_FILES"
+      BASE_FILES=$(( TOTAL_FILES / SLURM_NTASKS ))
+      REMAINDER=$(( TOTAL_FILES % SLURM_NTASKS ))
+      echo "DEBUG: BASE_FILES = $BASE_FILES, REMAINDER = $REMAINDER"
+      if [ "$SLURM_PROCID" -lt "$REMAINDER" ]; then
+          start_index=$(( SLURM_PROCID * (BASE_FILES + 1) ))
+          nfiles=$(( BASE_FILES + 1 ))
+      else
+          start_index=$(( REMAINDER * (BASE_FILES + 1) + (SLURM_PROCID - REMAINDER) * BASE_FILES ))
+          nfiles=$(( BASE_FILES ))
+      fi
+      echo "DEBUG: Task $SLURM_PROCID on $(hostname) assigned indices: $start_index to $(( start_index + nfiles - 1 ))"
+      for (( i = start_index; i < start_index + nfiles; i++ )); do
+          RUNID="${ids[i]}"
+          if [ -z "$RUNID" ]; then
+              echo "DEBUG: No RUNID found at index $i. Terminating loop."
+              break
+          fi
+          # Remove the "source_" prefix from RUNID for the pipeline call.
+          num_id="${RUNID#source_}"
+          echo "DEBUG: Task $SLURM_PROCID on $(hostname) processing RUNID index $i: $num_id"
+          ./sh_matching_echo.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
+      done
+    '
+    popd > /dev/null
+  fi
 else
-  echo "Parallel mode not handled in this version."
+  echo "Invalid mode: $MODE. Exiting."
+  exit 1
 fi
 
 # -------------------------------------------------------------------
 # (6) Output Aggregation: Unzip and Concatenate as TSV (Initial Run)
 # -------------------------------------------------------------------
-echo "Concatenating output files..."
+echo "Concatenating output files from current run..."
 TMP_OUT=$(mktemp -d)
-
-for zipfile in "$SH_MATCHING_DIR"/outdata/source_*.zip; do
-  if [[ -f "$zipfile" ]]; then
-    base_zip=$(basename "$zipfile" .zip)
-    target_dir="$TMP_OUT/$base_zip"
-    echo "Unzipping $zipfile into $target_dir..."
-    mkdir -p "$target_dir"
-    unzip -o "$zipfile" -d "$target_dir"
-  fi
+for id in "${source_ids[@]}"; do
+    zipfile="$SH_MATCHING_DIR/outdata/${id}.zip"
+    if [[ -f "$zipfile" ]]; then
+        target_dir="$TMP_OUT/${id}"
+        echo "Unzipping $zipfile into $target_dir..."
+        mkdir -p "$target_dir"
+        unzip -o "$zipfile" -d "$target_dir"
+    else
+        echo "Zip file for ${id} not found; skipping."
+    fi
 done
 
 base=$(basename "$INPUT_FILE")
 output_file="$OUTPUT_DIR/${base%.*}_all_matches_out.tsv"
 echo "Creating concatenated output file: $output_file"
 > "$output_file"
-
 for extracted_dir in "$TMP_OUT"/*; do
   echo "Checking directory: $(basename "$extracted_dir")"
   if [[ -d "$extracted_dir/matches" ]]; then
@@ -206,9 +278,8 @@ for extracted_dir in "$TMP_OUT"/*; do
     echo "Directory $(basename "$extracted_dir") does not contain a matches folder, skipping."
   fi
 done
-
 echo "Concatenation complete. Final TSV output in $output_file"
-rm -rf "$TMP_OUT"  # Remove the temporary output directory
+rm -rf "$TMP_OUT"
 
 # -------------------------------------------------------------------
 # (6.5) Re-run Pipeline for Unmatched Sequences (if enabled)
@@ -219,7 +290,6 @@ if [[ "$RERUN_UNMATCHED" == "yes" ]]; then
   matched_tsv="${OUTPUT_DIR}/${base%.*}_matched.tsv"
   new_total_tsv="${OUTPUT_DIR}/${base%.*}_new_total.tsv"
   
-  # Filter unmatched rows (assuming column 18 holds the status)
   awk -F"\t" 'NR==1 || ($18=="new_sh_in" || $18=="new_singleton_in")' "$output_file" > "$unmatched_tsv"
   awk -F"\t" 'NR==1 || ($18!="new_sh_in" && $18!="new_singleton_in")' "$output_file" > "$matched_tsv"
   
@@ -238,33 +308,38 @@ count = 0
 with open("$INPUT_FILE") as infile, open(rerun_fasta, "w") as outfile:
     for rec in SeqIO.parse(infile, "fasta"):
         if rec.id in unmatched_ids:
-            rec.id = rec.id  # Optionally modify header if needed.
+            rec.id = rec.id
             rec.description = rec.id
             count += 1
             SeqIO.write(rec, outfile, "fasta")
 print(f"Extracted {count} unmatched sequences to {rerun_fasta}")
 EOF
   
-  # Determine new run id: one more than the number of initial run files
-  initial_count=${#source_ids[@]}
-  rerun_id=$(printf "%03d" $((initial_count + 1)))
+  existing_files=("$SH_MATCHING_DIR/indata/source_"*)
+  max_id=0
+  for file in "${existing_files[@]}"; do
+    if [[ -f "$file" ]]; then
+      fname=$(basename "$file")
+      id_num=$((10#${fname#source_}))
+      if (( id_num > max_id )); then
+        max_id=$id_num
+      fi
+    fi
+  done
+  rerun_id=$(printf "%03d" $((max_id + 1)))
   echo "Using run id $rerun_id for unmatched re-run."
   
   echo "Re-running SH-matching pipeline on unmatched sequences..."
   pushd "$SH_MATCHING_DIR" > /dev/null
-  # Copy the new FASTA file into indata as source_<rerun_id>
   cp "$rerun_fasta" "indata/source_${rerun_id}"
   echo "Processing re-run pipeline with run id $rerun_id..."
-  ./sh_matching_echo.sif /sh_matching/run_pipeline.sh "$rerun_id" itsfull no yes no no
+  ./sh_matching_echo.sif /sh_matching/run_pipeline.sh "$rerun_id" itsfull no yes yes yes
   popd > /dev/null
   
-  # Append new mapping line for re-run to the mapping file.
-  # Extract the first header from the rerun FASTA file to record in the mapping file.
   first_header=$(grep '^>' "$rerun_fasta" | head -1)
   if [ -z "$first_header" ]; then
       first_header="-"
   fi
-  # For SAMPLE_INFO, set a value such as "rerun_input".
   if [[ -s "$OUTPUT_DIR/${base%.*}_rerun.tsv" ]]; then
       match_status="rerun_match"
   else
@@ -292,7 +367,7 @@ EOF
   else
       echo "Re-run zip file not found: $rerun_zip"
       rerun_output=""
-      rm -rf "$TMP_OUT_RERUN"  # Ensure removal even if zip file is missing
+      rm -rf "$TMP_OUT_RERUN"
   fi
   
   echo "Creating new total TSV file..."
@@ -317,37 +392,40 @@ fi
 # (7) Cleanup: Remove Intermediate Files
 # -------------------------------------------------------------------
 echo "Cleaning up intermediate files..."
-
-if [[ -f run_IDS_1.txt ]]; then
-  rm -f run_IDS_1.txt
-  echo "Removed run_IDS_1.txt."
-fi
-
+echo "Removing files from indata..."
 for id in "${source_ids[@]}"; do
   target="$SH_MATCHING_DIR/indata/$id"
   if [[ -f "$target" ]]; then
     rm -f "$target"
-    echo "Removed intermediate file: $target"
+    echo "Removed indata file: $target"
+  else
+    echo "Indata file $target not found."
   fi
 done
 
-# Also remove the rerun file from indata and its corresponding zip file from outdata (if rerun was enabled)
+echo "Removing files from outdata..."
+for id in "${source_ids[@]}"; do
+  target="$SH_MATCHING_DIR/outdata/${id}.zip"
+  if [[ -f "$target" ]]; then
+    rm -f "$target"
+    echo "Removed outdata zip file: $target"
+  else
+    echo "Outdata zip file $target not found."
+  fi
+done
+
 if [[ "$RERUN_UNMATCHED" == "yes" ]]; then
   rerun_indata="$SH_MATCHING_DIR/indata/source_${rerun_id}"
   if [[ -f "$rerun_indata" ]]; then
     rm -f "$rerun_indata"
-    echo "Removed rerun intermediate file: $rerun_indata"
+    echo "Removed rerun indata file: $rerun_indata"
   fi
   
   rerun_outdata="$SH_MATCHING_DIR/outdata/source_${rerun_id}.zip"
   if [[ -f "$rerun_outdata" ]]; then
     rm -f "$rerun_outdata"
-    echo "Removed rerun output zip file: $rerun_outdata"
+    echo "Removed rerun outdata zip file: $rerun_outdata"
   fi
 fi
-
-# Optionally, remove the mapping file if not needed.
-# rm -f "$MAPPING_FILE"
-# echo "Removed mapping file: $MAPPING_FILE."
 
 echo "Processing complete."
