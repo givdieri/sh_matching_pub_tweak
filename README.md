@@ -84,22 +84,38 @@ The script expects input files in FASTA format. Outdata files are described in [
     ```
 5. For a metabarcoding flavour, rename your sourcefiles according to your pre-processed barcode files (e.g. barcode 28 could be source_28). Create a list of RUNID in a txt file and to run in parallel on mutliple nodes using SLURM, do:
     ```console
-    srun --nodes=node_amount --ntasks=node_amount --label /bin/bash -c '
-      # Generate a timestamp
+    srun --nodes=$node_amount --ntasks=$$node_amount  --label /bin/bash -c '
       TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-      # Duplicate all output (stdout and stderr) to a log file and the screen:
       exec > >(tee -a job_${SLURM_PROCID}_$(hostname)_${TIMESTAMP}.log) 2>&1
-      export OMP_NUM_THREADS=max_threads_per_node
-      # Each node processes X input files sequentially:
-      RUNID1=$(sed -n "$((SLURM_PROCID+1))p" source_numbers.txt)
-      RUNID2=$(sed -n "$((SLURM_PROCID*2+2))p" source_numbers.txt)
-      echo "Task $SLURM_PROCID on $(hostname) processing RUNID1: $RUNID1"
-      ./sh_matching.sif /sh_matching/run_pipeline.sh $RUNID1 itsfull no yes no no
-      echo "Task $SLURM_PROCID on $(hostname) processing RUNID1: $RUNID2"
-      ./sh_matching.sif /sh_matching/run_pipeline.sh $RUNID2 itsfull no yes no no
+      export OMP_NUM_THREADS=$thread_amount
+    
+      TOTAL_FILES= "numver of input files (source_ids)
+    
+      # Compute base files per task and remainder
+      BASE_FILES=$((TOTAL_FILES / SLURM_NTASKS))
+      REMAINDER=$((TOTAL_FILES % SLURM_NTASKS))
+    
+      # Assign input files to tasks
+      if [ "$SLURM_PROCID" -lt "$REMAINDER" ]; then
+          start_index=$((SLURM_PROCID * (BASE_FILES + 1) + 1))
+          nfiles=$((BASE_FILES + 1))
+      else
+          start_index=$((REMAINDER * (BASE_FILES + 1) + (SLURM_PROCID - REMAINDER) * BASE_FILES + 1))
+          nfiles=$BASE_FILES
+      fi
+    
+      # Loop through assigned input files
+      for ((i = start_index; i < start_index + nfiles; i++)); do
+          RUNID=$(sed -n "${i}p" source_numbers.txt)
+          if [ -z "$RUNID" ]; then
+              echo "No RUNID found at index $i. Terminating loop."
+              break
+          fi
+          echo "Task $SLURM_PROCID on $(hostname) processing RUNID index $i: $RUNID"
+          ./sh_matching_tweak.sif /sh_matching/run_pipeline.sh "$RUNID" itsfull no yes yes no
+      done
     '
     ```
-    The number of RUNID depends on how many input files you want to process per node. For example using 7 nodes, to process 14 source files you would need 14/7=2 RUNIDs
 
 6. From the output, sequences can be merged across barcodes/input files based on SH-code. That is not the case for new/non-existing clusters. Those we need to gather from output files. Running [filter_newsh.py]() iterates output files, collects sequences that are either new_singletons or new_sh at the 0.5% level, write them to a single file and appends RUNID information to the fasta headers to seperate them out later.
 You can use the file as a new input file for SH-matching and use the preferred cluster level resulting from this SH-matching to finalize your OTU-table.
