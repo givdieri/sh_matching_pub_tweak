@@ -11,7 +11,7 @@ usage() {
   echo "  -s   Directory for SH-matching files and tools"
   echo "  -o   Output directory for results"
   echo "  -t   Number of threads per task (default: all available cores via nproc)"
-  echo "  -m   Maximum sequences per split file (default: 30000)"
+  echo "  -m   Maximum sequences per split file (default: 30)"
   echo "  -M   Execution mode: \"sequential\" or \"parallel\" (default: sequential)"
   echo "  -n   Number of nodes (used only in parallel mode, default: 1)"
   echo "  -r   Re-run unmatched sequences: \"yes\" or \"no\" (default: yes)"
@@ -189,7 +189,7 @@ if [[ "$MODE" == "sequential" ]]; then
   for id in "${source_ids[@]}"; do
     num_id="${id#source_}"
     echo "Processing $id sequentially with run id $num_id..."
-    ./sh_matching_echo.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
+    /scratch/gent/vo/001/gvo00142/sh_matching_pub_tweak/sh_matching_echo_data.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
   done
   popd > /dev/null
 elif [[ "$MODE" == "parallel" ]]; then
@@ -227,7 +227,7 @@ elif [[ "$MODE" == "parallel" ]]; then
           # Remove the "source_" prefix from RUNID for the pipeline call.
           num_id="${RUNID#source_}"
           echo "DEBUG: Task $SLURM_PROCID on $(hostname) processing RUNID index $i: $num_id"
-          ./sh_matching_echo.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
+          /scratch/gent/vo/001/gvo00142/sh_matching_pub_tweak/sh_matching_echo_data.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
       done
     '
     popd > /dev/null
@@ -332,8 +332,12 @@ EOF
   echo "Re-running SH-matching pipeline on unmatched sequences..."
   pushd "$SH_MATCHING_DIR" > /dev/null
   cp "$rerun_fasta" "indata/source_${rerun_id}"
+  
   echo "Processing re-run pipeline with run id $rerun_id..."
-  ./sh_matching_echo.sif /sh_matching/run_pipeline.sh "$rerun_id" itsfull no yes yes yes
+  # Run container command in a subshell to avoid exec replacement of the main shell
+  (
+    /scratch/gent/vo/001/gvo00142/sh_matching_pub_tweak/sh_matching_echo_data.sif /sh_matching/run_pipeline.sh "$rerun_id" itsfull no yes yes yes
+  )
   popd > /dev/null
   
   first_header=$(grep '^>' "$rerun_fasta" | head -1)
