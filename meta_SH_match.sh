@@ -11,7 +11,7 @@ usage() {
   echo "  -s   Directory for SH-matching files and tools"
   echo "  -o   Output directory for results"
   echo "  -t   Number of threads per task (default: all available cores via nproc)"
-  echo "  -m   Maximum sequences per split file (default: 30)"
+  echo "  -m   Maximum sequences per split file (default: 30000)"
   echo "  -M   Execution mode: \"sequential\" or \"parallel\" (default: sequential)"
   echo "  -n   Number of nodes (used only in parallel mode, default: 1)"
   echo "  -r   Re-run unmatched sequences: \"yes\" or \"no\" (default: yes)"
@@ -177,8 +177,9 @@ rm -r "$TMP_SPLIT_DIR"
 mapfile -t source_ids < <(awk 'NR>1 { id = $2; sub(".*/", "", id); if (!seen[id]++) print id }' "$MAPPING_FILE")
 echo "Unique source IDs to process: ${source_ids[*]}"
 
-# Export SOURCE_IDS so that srun tasks can reconstruct the array.
+# Export SOURCE_IDS and OMP_NUM_THREADS for use by parallel tasks.
 export SOURCE_IDS="${source_ids[*]}"
+export OMP_NUM_THREADS="$THREADS"
 
 # -------------------------------------------------------------------
 # (5) Running SH-Matching Pipeline (Initial Run)
@@ -189,7 +190,7 @@ if [[ "$MODE" == "sequential" ]]; then
   for id in "${source_ids[@]}"; do
     num_id="${id#source_}"
     echo "Processing $id sequentially with run id $num_id..."
-    /scratch/gent/vo/001/gvo00142/sh_matching_pub_tweak/sh_matching_echo_data.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
+    /scratch/gent/vo/001/gvo00142/sh_matching_pub_tweak/sh_matching_echo_rawumi.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
   done
   popd > /dev/null
 elif [[ "$MODE" == "parallel" ]]; then
@@ -198,38 +199,54 @@ elif [[ "$MODE" == "parallel" ]]; then
   else
     echo "Running in parallel mode on $NODES nodes..."
     pushd "$SH_MATCHING_DIR" > /dev/null
-    srun --nodes="$NODES" --ntasks="$NODES" --export=ALL --label /bin/bash -c '
-      TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-      echo "current time is $TIMESTAMP"
-      export OMP_NUM_THREADS='"$THREADS"'
-      # Reconstruct the source IDs array from the environment variable
-      read -r -a ids <<< "$SOURCE_IDS"
-      echo "DEBUG: Source IDs received: ${ids[@]}"
-      TOTAL_FILES=${#ids[@]}
-      echo "DEBUG: TOTAL_FILES = $TOTAL_FILES"
-      BASE_FILES=$(( TOTAL_FILES / SLURM_NTASKS ))
-      REMAINDER=$(( TOTAL_FILES % SLURM_NTASKS ))
-      echo "DEBUG: BASE_FILES = $BASE_FILES, REMAINDER = $REMAINDER"
-      if [ "$SLURM_PROCID" -lt "$REMAINDER" ]; then
-          start_index=$(( SLURM_PROCID * (BASE_FILES + 1) ))
-          nfiles=$(( BASE_FILES + 1 ))
-      else
-          start_index=$(( REMAINDER * (BASE_FILES + 1) + (SLURM_PROCID - REMAINDER) * BASE_FILES ))
-          nfiles=$(( BASE_FILES ))
-      fi
-      echo "DEBUG: Task $SLURM_PROCID on $(hostname) assigned indices: $start_index to $(( start_index + nfiles - 1 ))"
-      for (( i = start_index; i < start_index + nfiles; i++ )); do
-          RUNID="${ids[i]}"
-          if [ -z "$RUNID" ]; then
-              echo "DEBUG: No RUNID found at index $i. Terminating loop."
-              break
-          fi
-          # Remove the "source_" prefix from RUNID for the pipeline call.
-          num_id="${RUNID#source_}"
-          echo "DEBUG: Task $SLURM_PROCID on $(hostname) processing RUNID index $i: $num_id"
-          /scratch/gent/vo/001/gvo00142/sh_matching_pub_tweak/sh_matching_echo_data.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
-      done
-    '
+
+    # --- Revised srun block for debugging ---
+    PARALLEL_COMMAND=$(cat <<'EOF'
+set -x
+# Set defaults for SLURM variables if not set.
+: ${SLURM_NTASKS:=1}
+: ${SLURM_PROCID:=0}
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+echo "DEBUG: Current time is $TIMESTAMP"
+# Reconstruct the source IDs array from the environment variable.
+read -r -a ids <<< "$SOURCE_IDS"
+echo "DEBUG: Source IDs received: ${ids[@]}"
+TOTAL_FILES=${#ids[@]}
+echo "DEBUG: TOTAL_FILES = $TOTAL_FILES"
+BASE_FILES=$(( TOTAL_FILES / SLURM_NTASKS ))
+REMAINDER=$(( TOTAL_FILES % SLURM_NTASKS ))
+echo "DEBUG: BASE_FILES = $BASE_FILES, REMAINDER = $REMAINDER"
+if [ "$SLURM_PROCID" -lt "$REMAINDER" ]; then
+    start_index=$(( SLURM_PROCID * (BASE_FILES + 1) ))
+    nfiles=$(( BASE_FILES + 1 ))
+else
+    start_index=$(( REMAINDER * (BASE_FILES + 1) + (SLURM_PROCID - REMAINDER) * BASE_FILES ))
+    nfiles=$(( BASE_FILES ))
+fi
+end_index=$(( start_index + nfiles ))
+echo "DEBUG: Task \$SLURM_PROCID on \$(hostname) assigned indices: \$start_index to \$end_index"
+for (( i = start_index; i < end_index; i++ )); do
+    echo "DEBUG: In for loop, i=\$i"
+    RUNID="${ids[i]}"
+    if [ -z "$RUNID" ]; then
+        echo "DEBUG: No RUNID found at index \$i. Terminating loop."
+        break
+    fi
+    num_id="${RUNID#source_}"
+    echo "DEBUG: Task \$SLURM_PROCID on \$(hostname) processing RUNID index \$i: \$num_id"
+    /scratch/gent/vo/001/gvo00142/sh_matching_pub_tweak/sh_matching_echo_rawumi.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
+done
+echo "DEBUG: Done with parallel processing"
+EOF
+)
+
+echo "DEBUG: The following parallel command will be executed by srun:"
+echo "$PARALLEL_COMMAND"
+
+srun --nodes="$NODES" --ntasks="$NODES" --export=ALL --label /bin/bash -c "$PARALLEL_COMMAND" || { echo "srun command failed, but continuing..."; }
+
+
+
     popd > /dev/null
   fi
 else
@@ -334,9 +351,8 @@ EOF
   cp "$rerun_fasta" "indata/source_${rerun_id}"
   
   echo "Processing re-run pipeline with run id $rerun_id..."
-  # Run container command in a subshell to avoid exec replacement of the main shell
   (
-    /scratch/gent/vo/001/gvo00142/sh_matching_pub_tweak/sh_matching_echo_data.sif /sh_matching/run_pipeline.sh "$rerun_id" itsfull no yes yes yes
+    /scratch/gent/vo/001/gvo00142/sh_matching_pub_tweak/sh_matching_echo_rawumi.sif /sh_matching/run_pipeline.sh "$rerun_id" itsfull no yes yes yes
   )
   popd > /dev/null
   
