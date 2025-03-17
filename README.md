@@ -83,42 +83,63 @@ The script expects input files in FASTA format. Outdata files are described in [
     ```console
     ./sh_matching_tweak.sif /sh_matching/run_pipeline.sh 11 itsfull yes yes no no  2>&1 | tee sh_matching.log
     ```
-5. For a metabarcoding flavour, rename your sourcefiles according to your pre-processed barcode files (e.g. barcode 28 could be source_28). Create a list of RUNID in a txt file and to run in parallel on mutliple nodes using SLURM, do:
+5. For a metabarcoding flavour, run the (meta_SH_match.sh)[https://raw.githubusercontent.com/MycoMatics/sh_matching_pub_tweak/refs/heads/master/meta_SH_match.sh] script which splits large input fasta files into smaller chunks and runs SH-matching on each. The results are combined. It is possible to re-run unmatched sequences at the 0.5% toghether (to detect larger 'new_sh')
     ```console
-    srun --nodes=$node_amount --ntasks=$$node_amount  --label /bin/bash -c '
-      TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-      exec > >(tee -a job_${SLURM_PROCID}_$(hostname)_${TIMESTAMP}.log) 2>&1
-      export OMP_NUM_THREADS=$thread_amount
+       chmod +x meta_SH_match.sh
     
-      TOTAL_FILES= "numver of input files (source_ids)
-    
-      # Compute base files per task and remainder
-      BASE_FILES=$((TOTAL_FILES / SLURM_NTASKS))
-      REMAINDER=$((TOTAL_FILES % SLURM_NTASKS))
-    
-      # Assign input files to tasks
-      if [ "$SLURM_PROCID" -lt "$REMAINDER" ]; then
-          start_index=$((SLURM_PROCID * (BASE_FILES + 1) + 1))
-          nfiles=$((BASE_FILES + 1))
-      else
-          start_index=$((REMAINDER * (BASE_FILES + 1) + (SLURM_PROCID - REMAINDER) * BASE_FILES + 1))
-          nfiles=$BASE_FILES
-      fi
-    
-      # Loop through assigned input files
-      for ((i = start_index; i < start_index + nfiles; i++)); do
-          RUNID=$(sed -n "${i}p" source_numbers.txt)
-          if [ -z "$RUNID" ]; then
-              echo "No RUNID found at index $i. Terminating loop."
-              break
-          fi
-          echo "Task $SLURM_PROCID on $(hostname) processing RUNID index $i: $RUNID"
-          ./sh_matching_tweak.sif /sh_matching/run_pipeline.sh "$RUNID" itsfull no yes yes no
-      done
-    '
-    ```
+       bash meta_SH_match.sh
+       Usage: meta_SH_match_raw_umi.sh -i INPUT_FILE -s SH_MATCHING_DIR -o OUTPUT_DIR [-t THREADS] [-m MAX_SEQUENCES] [-M MODE] [-n NODES] [-r RERUN_UNMATCHED]  
+      -i   Path to the input FASTA file
+      -s   Directory for SH-matching files and tools
+      -o   Output directory for results
+      -t   Number of threads per task (default: all available cores via nproc)
+      -m   Maximum sequences per split file (default: 30000)
+      -M   Execution mode: "sequential" or "parallel" (default: sequential)
+      -n   Number of nodes (used only in parallel mode, default: 1)
+      -r   Re-run unmatched sequences: "yes" or "no" (default: yes)
+      ```
+   For example, to loop over input fasta files in a directory:
+    ```console
 
-6. From the output, sequences can be merged across barcodes/input files based on SH-code. That is not the case for new/non-existing clusters. Those we need to gather from output files. Running [filter_newsh.py]() iterates output files, collects sequences that are either new_singletons or new_sh at the 0.5% level, write them to a single file and appends RUNID information to the fasta headers to seperate them out later.
+    for FILE in /path/to/*.fasta; do
+        base=$(basename "$FILE" .fasta)
+        OUTPUT_DIR="prefix_${base}"
+    
+        # Check if the output directory already exists
+        if [ -d "$OUTPUT_DIR" ]; then
+            echo "Skipping $FILE as it has already been processed."
+        else
+            echo "Processing $FILE with output in $OUTPUT_DIR"
+            chmod +x meta_SH_match.sh
+            bash meta_SH_match.sh -i "$FILE" \
+            -s "/path/to/sh_matching_pub_tweak" \
+            -M "sequential"  -o "$OUTPUT_DIR"
+        fi
+    done
+      ```
+    Or if you have multiple computing nodes available, it is possible to use the SLURM job manager to run in parallel (i.e. split files of maximum input sequences, default=30k seqs).
+    For example using 4 nodes:
+    ```console
+
+    for FILE in /path/to/*.fasta; do
+        base=$(basename "$FILE" .fasta)
+        OUTPUT_DIR="prefix_${base}"
+    
+        # Check if the output directory already exists
+        if [ -d "$OUTPUT_DIR" ]; then
+            echo "Skipping $FILE as it has already been processed."
+        else
+            echo "Processing $FILE with output in $OUTPUT_DIR"
+            chmod +x meta_SH_match.sh
+            bash meta_SH_match.sh -i "$FILE" \
+            -s "/path/to/sh_matching_pub_tweak" \
+            -M "parallel" -n 4 -o "$OUTPUT_DIR"
+        fi
+    done
+      ```
+BONUS:  
+Similar to meta_sh_match script, there is a seperate script that can iterate across output files from SH-matching.  
+From the output, sequences can be merged across barcodes/input files based on SH-code. That is not the case for new/non-existing clusters. Those we need to gather from output files. Running [filter_newsh.py]() iterates output files, collects sequences that are either new_singletons or new_sh at the 0.5% level, write them to a single file and appends RUNID information to the fasta headers to seperate them out later.
 You can use the file as a new input file for SH-matching and use the preferred cluster level resulting from this SH-matching to finalize your OTU-table.
 
 ## Citing
