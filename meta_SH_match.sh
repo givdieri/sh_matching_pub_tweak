@@ -1,16 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-# -------------------------------------------------------------------
-# author: Glen Dierickx  March 2025
-#
-# Description
-# script that takes a fasta file and does SH-matching on it, designed to process large (metabarcoding) input files,
-# the script automatially splits the input fasta into default 30k seqs and rearranges the output in a single tsv table in a specified output dir.
-# unmatched seqs at 0.5% can be rerun togheter to detect large non-existing SH and in that way, serve as a proxy to unidentified OTUs in analyses.
-# To speed up there is a possibility to run the SH-matching on split files in parallel on different NODES (!not different threads!) using SLURM job manager.
-# This script works on the Ghent University HPC and was not tested outside of that environment and was created because of both inode file issues
-# and memory issues resulting from usearch hierarchical clustering which needs to allocate a full distance matrix into working mem (results in error filesize too big)
-# -------------------------------------------------------------------
+
 # -------------------------------------------------------------------
 # Usage function
 # -------------------------------------------------------------------
@@ -210,7 +200,7 @@ elif [[ "$MODE" == "parallel" ]]; then
     echo "Running in parallel mode on $NODES nodes..."
     pushd "$SH_MATCHING_DIR" > /dev/null
 
-    # --- Revised srun block for debugging ---
+    # --- Revised srun block for parallel processing ---
     PARALLEL_COMMAND=$(cat <<'EOF'
 set -x
 # Set defaults for SLURM variables if not set.
@@ -249,14 +239,9 @@ done
 echo "DEBUG: Done with parallel processing"
 EOF
 )
-
-echo "DEBUG: The following parallel command will be executed by srun:"
-echo "$PARALLEL_COMMAND"
-
-srun --nodes="$NODES" --ntasks="$NODES" --export=ALL --label /bin/bash -c "$PARALLEL_COMMAND" || { echo "srun command failed, but continuing..."; }
-
-
-
+    echo "DEBUG: The following parallel command will be executed by srun:"
+    echo "$PARALLEL_COMMAND"
+    srun --nodes="$NODES" --ntasks="$NODES" --export=ALL --label /bin/bash -c "$PARALLEL_COMMAND" || { echo "srun command failed, but continuing..."; }
     popd > /dev/null
   fi
 else
@@ -361,9 +346,8 @@ EOF
   cp "$rerun_fasta" "indata/source_${rerun_id}"
   
   echo "Processing re-run pipeline with run id $rerun_id..."
-  (
-    /scratch/gent/vo/001/gvo00142/sh_matching_pub_tweak/sh_matching_echo_rawumi.sif /sh_matching/run_pipeline.sh "$rerun_id" itsfull no yes yes yes
-  )
+  # Removed subshell to run container call in the main shell.
+  /scratch/gent/vo/001/gvo00142/sh_matching_pub_tweak/sh_matching_echo_rawumi.sif /sh_matching/run_pipeline.sh "$rerun_id" itsfull no yes yes yes || { echo "Warning: Re-run pipeline failed for run id $rerun_id"; }
   popd > /dev/null
   
   first_header=$(grep '^>' "$rerun_fasta" | head -1)
