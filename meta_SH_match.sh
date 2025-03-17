@@ -2,6 +2,15 @@
 set -euo pipefail
 
 # -------------------------------------------------------------------
+# author: Glen Dierickx  March 2025
+# Description
+# script that takes a fasta file and does SH-matching on it, designed to process large (metabarcoding) input files,
+# the script automatially splits the input fasta into default 30k seqs and rearranges the output in a single tsv table in a specified output dir.
+# unmatched seqs at 0.5% can be rerun togheter to detect large non-existing SH and in that way, serve as a proxy to unidentified OTUs in analyses.
+# To speed up there is a possibility to run the SH-matching on split files in parallel on different NODES (!not different threads!) using SLURM job manager.
+# This script works on the Ghent University HPC and was not tested outside of that environment and was created because of both inode file issues
+# and memory issues resulting from usearch hierarchical clustering which needs to allocate a full distance matrix into working mem (results in error filesize too big)
+# -------------------------------------------------------------------
 # Usage function
 # -------------------------------------------------------------------
 usage() {
