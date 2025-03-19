@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
 """
-Scientific Workflow for Filtering Sequences from Promethion Runs
 
-This script performs the following steps for each zip file located in the 
-'/scratch/gent/vo/001/gvo00142/vsc45818/promethion_runs/sh_matching_pub-2.0.2/outdata' directory:
-
-1. Unzips files matching the pattern source_??.zip.
+1. Unzips files matching the pattern source_<digits>.zip.
 2. Reads the TSV file (matches_out_all.csv) from the unzipped directory.
 3. Filters the rows based on the 18th column ('status (0.5)')—only retaining rows where
    the status is 'new_sh_in' or 'new_singleton_in'.
 4. Extracts the sequence accession numbers (seq_accno, column 2) from these rows.
 5. Opens the corresponding FASTA file from the indata directory (named identically to the source directory).
 6. Extracts sequences whose headers match the filtered seq_accnos.
-7. Appends the string ";sample=barcodeXX" (where XX is taken from the source file name) to each FASTA header.
-8. Writes the filtered sequences into a new file (named source_XX_filtered) in a temporary directory.
+7. Appends the string ";sample=barcodeXX" (where XX is the numeric barcode extracted from the source file name) to each FASTA header.
+8. Writes the filtered sequences into a new file (named source_<digits>_filtered) in a temporary directory.
 9. Concatenates all filtered files into one file "concatenated_source" written in the current working directory.
 10. Removes the intermediate extraction and filtered directories unless the flag --keep-temp is provided.
 
@@ -44,9 +40,9 @@ parser.add_argument(
 args = parser.parse_args()
 
 # Define base directories
-OUTDATA_DIR = "/scratch/gent/vo/001/gvo00142/vsc45818/promethion_runs/sh_matching_pub-2.0.2/outdata"
-INDATA_DIR = "/scratch/gent/vo/001/gvo00142/vsc45818/promethion_runs/sh_matching_pub-2.0.2/indata"
-FILTERED_DIR = "/scratch/gent/vo/001/gvo00142/vsc45818/promethion_runs/sh_matching_pub-2.0.2/filtered_sequences"
+OUTDATA_DIR = "path/to/outdata"
+INDATA_DIR = "path/to/indata"
+FILTERED_DIR = "filtered_sequences"
 
 # Create output directory for filtered sequences if it doesn't exist
 if not os.path.exists(FILTERED_DIR):
@@ -55,15 +51,15 @@ if not os.path.exists(FILTERED_DIR):
 # Keep track of extraction directories for later cleanup
 extraction_dirs = []
 
-# Process each zip file matching the pattern source_??.zip
-zip_files = glob.glob(os.path.join(OUTDATA_DIR, "source_[0-9][0-9].zip"))
+# Process each zip file matching the pattern source_<digits>.zip
+zip_files = glob.glob(os.path.join(OUTDATA_DIR, "source_[0-9]*.zip"))
 for zip_file in zip_files:
-    # Get the base file name and derive the file identifier (e.g., source_22)
+    # Get the base file name and derive the file identifier (e.g., source_22 or source_123)
     base_name = os.path.basename(zip_file)      # e.g., source_22.zip
     file_id = os.path.splitext(base_name)[0]      # e.g., source_22
 
-    # Extract the two-digit barcode from the file_id using regex
-    match = re.search(r"source_(\d{2})", file_id)
+    # Extract the numeric barcode from the file_id using regex (matches any number of digits)
+    match = re.search(r"source_(\d+)", file_id)
     if match:
         barcode = match.group(1)
     else:
@@ -116,7 +112,7 @@ for zip_file in zip_files:
             record.description = record.id  # Update description to match the new header
             filtered_sequences.append(record)
 
-    # Write the filtered sequences to a new file named source_XX_filtered in FILTERED_DIR
+    # Write the filtered sequences to a new file named source_<digits>_filtered in FILTERED_DIR
     output_fasta = os.path.join(FILTERED_DIR, file_id + "_filtered")
     with open(output_fasta, "w") as out_f:
         SeqIO.write(filtered_sequences, out_f, "fasta")
@@ -125,7 +121,7 @@ for zip_file in zip_files:
 # Concatenate all filtered FASTA files into a single file "concatenated_source" in the working directory
 final_concatenated_file = os.path.join(os.getcwd(), "concatenated_source")
 with open(final_concatenated_file, "w") as outfile:
-    for filtered_fasta in glob.glob(os.path.join(FILTERED_DIR, "source_[0-9][0-9]_filtered")):
+    for filtered_fasta in glob.glob(os.path.join(FILTERED_DIR, "source_[0-9]*_filtered")):
         with open(filtered_fasta, "r") as infile:
             for line in infile:
                 if line.startswith(">"):
