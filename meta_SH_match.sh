@@ -5,11 +5,9 @@ set -euo pipefail
 # author: Glen Dierickx  March 2025
 # Description
 # script that takes a fasta file and does SH-matching on it, designed to process large (metabarcoding) input files,
-# the script automatially splits the input fasta into default 30k seqs and rearranges the output in a single tsv table in a specified output dir.
-# unmatched seqs at 0.5% can be rerun togheter to detect large non-existing SH and in that way, serve as a proxy to unidentified OTUs in analyses.
-# To speed up there is a possibility to run the SH-matching on split files in parallel on different NODES (!not different threads!) using SLURM job manager.
-# This script works on the Ghent University HPC and was not tested outside of that environment and was created because of both inode file issues
-# and memory issues resulting from usearch hierarchical clustering which needs to allocate a full distance matrix into working mem (results in error filesize too big)
+# the script automatically splits the input fasta into default 30k seqs and rearranges the output in a single tsv table in a specified output dir.
+# Unmatched seqs at 0.5% can be re-run together to detect large non-existing SH and serve as a proxy to unidentified OTUs in analyses.
+# To speed up, there is a possibility to run the SH-matching on split files in parallel on different NODES (not threads) using SLURM job manager.
 # -------------------------------------------------------------------
 # Usage function
 # -------------------------------------------------------------------
@@ -199,7 +197,7 @@ if [[ "$MODE" == "sequential" ]]; then
   for id in "${source_ids[@]}"; do
     num_id="${id#source_}"
     echo "Processing $id sequentially with run id $num_id..."
-    /scratch/gent/vo/001/gvo00142/sh_matching_pub_tweak/sh_matching_echo_rawumi.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
+    "$SH_MATCHING_DIR"/sh_matching_pub_tweak.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
   done
   popd > /dev/null
 elif [[ "$MODE" == "parallel" ]]; then
@@ -243,7 +241,7 @@ for (( i = start_index; i < end_index; i++ )); do
     fi
     num_id="${RUNID#source_}"
     echo "DEBUG: Task \$SLURM_PROCID on \$(hostname) processing RUNID index \$i: \$num_id"
-    /scratch/gent/vo/001/gvo00142/sh_matching_pub_tweak/sh_matching_echo_rawumi.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
+    "$SH_MATCHING_DIR"/sh_matching_pub_tweak.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
 done
 echo "DEBUG: Done with parallel processing"
 EOF
@@ -303,24 +301,26 @@ echo "Concatenation complete. Final TSV output in $output_file"
 rm -rf "$TMP_OUT"
 
 # -------------------------------------------------------------------
-# (6.5) Re-run Pipeline for Unmatched Sequences (if enabled)
+# (6.5) Prepare Unmatched/Matched Files and Rerun FASTA
 # -------------------------------------------------------------------
-if [[ "$RERUN_UNMATCHED" == "yes" ]]; then
-  echo "Filtering unmatched sequences from original TSV..."
-  unmatched_tsv="${OUTPUT_DIR}/${base%.*}_unmatched.tsv"
-  matched_tsv="${OUTPUT_DIR}/${base%.*}_matched.tsv"
-  new_total_tsv="${OUTPUT_DIR}/${base%.*}_new_total.tsv"
-  
-  awk -F"\t" 'NR==1 || ($18=="new_sh_in" || $18=="new_singleton_in")' "$output_file" > "$unmatched_tsv"
-  awk -F"\t" 'NR==1 || ($18!="new_sh_in" && $18!="new_singleton_in")' "$output_file" > "$matched_tsv"
-  
-  echo "Extracting sequence accession numbers from unmatched TSV..."
-  unmatched_ids_file=$(mktemp)
-  tail -n +2 "$unmatched_tsv" | awk -F"\t" '{print $2}' | sort | uniq > "$unmatched_ids_file"
-  
-  echo "Extracting unmatched sequences from the input FASTA..."
-  rerun_fasta="${OUTPUT_DIR}/${base%.*}_rerun_input.fasta"
-  python3 - <<EOF
+# The following steps now always create the files:
+# - unmatched.tsv, matched.tsv, and rerun_input.fasta
+# immediately after the initial output aggregation, regardless of the -r flag.
+echo "Filtering unmatched sequences from original TSV..."
+unmatched_tsv="${OUTPUT_DIR}/${base%.*}_unmatched.tsv"
+matched_tsv="${OUTPUT_DIR}/${base%.*}_matched.tsv"
+new_total_tsv="${OUTPUT_DIR}/${base%.*}_new_total.tsv"
+
+awk -F"\t" 'NR==1 || ($18=="new_sh_in" || $18=="new_singleton_in")' "$output_file" > "$unmatched_tsv"
+awk -F"\t" 'NR==1 || ($18!="new_sh_in" && $18!="new_singleton_in")' "$output_file" > "$matched_tsv"
+
+echo "Extracting sequence accession numbers from unmatched TSV..."
+unmatched_ids_file=$(mktemp)
+tail -n +2 "$unmatched_tsv" | awk -F"\t" '{print $2}' | sort | uniq > "$unmatched_ids_file"
+
+echo "Extracting unmatched sequences from the input FASTA..."
+rerun_fasta="${OUTPUT_DIR}/${base%.*}_rerun_input.fasta"
+python3 - <<EOF
 import sys
 from Bio import SeqIO
 rerun_fasta = "$rerun_fasta"
@@ -335,7 +335,10 @@ with open("$INPUT_FILE") as infile, open(rerun_fasta, "w") as outfile:
             SeqIO.write(rec, outfile, "fasta")
 print(f"Extracted {count} unmatched sequences to {rerun_fasta}")
 EOF
-  
+
+# If re-run is enabled, perform the additional pipeline steps
+if [[ "$RERUN_UNMATCHED" == "yes" ]]; then
+  echo "Re-running SH-matching pipeline on unmatched sequences..."
   existing_files=("$SH_MATCHING_DIR/indata/source_"*)
   max_id=0
   for file in "${existing_files[@]}"; do
@@ -350,13 +353,11 @@ EOF
   rerun_id=$(printf "%03d" $((max_id + 1)))
   echo "Using run id $rerun_id for unmatched re-run."
   
-  echo "Re-running SH-matching pipeline on unmatched sequences..."
   pushd "$SH_MATCHING_DIR" > /dev/null
   cp "$rerun_fasta" "indata/source_${rerun_id}"
   
   echo "Processing re-run pipeline with run id $rerun_id..."
-  # Removed subshell to run container call in the main shell.
-  /scratch/gent/vo/001/gvo00142/sh_matching_pub_tweak/sh_matching_echo_rawumi.sif /sh_matching/run_pipeline.sh "$rerun_id" itsfull no yes yes yes || { echo "Warning: Re-run pipeline failed for run id $rerun_id"; }
+  "$SH_MATCHING_DIR"/sh_matching_pub_tweak.sif /sh_matching/run_pipeline.sh "$rerun_id" itsfull no yes yes yes || { echo "Warning: Re-run pipeline failed for run id $rerun_id"; }
   popd > /dev/null
   
   first_header=$(grep '^>' "$rerun_fasta" | head -1)
@@ -405,11 +406,11 @@ EOF
   echo "Matched TSV: $matched_tsv"
   echo "Re-run TSV: $rerun_output"
   echo "New Total TSV: $new_total_tsv"
-  
-  rm -f "$unmatched_ids_file"
 else
   echo "Rerun of unmatched sequences is disabled. Skipping re-run pipeline."
 fi
+
+rm -f "$unmatched_ids_file"
 
 # -------------------------------------------------------------------
 # (7) Cleanup: Remove Intermediate Files
