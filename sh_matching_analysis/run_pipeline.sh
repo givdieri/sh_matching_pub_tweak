@@ -174,22 +174,22 @@ if [ "$include_usearch_05_step" == "yes" ]; then
 
     echo "Running 97% pre-clustering..."
     ## 97% pre-clustering
-    "$program_dir/usearch" -cluster_fast "$user_dir/iupac_out_vsearch.fasta" -id 0.97 -gapopen 0.0/0.0E -gapext 1.0/0.5E -sort other -uc "$user_dir/clusters_97_pre.uc"
+    "$program_dir/usearch" -cluster_fast "$user_dir/iupac_out_vsearch.fasta" -id 0.97 -threads $THREADS -gapopen 0.0/0.0E -gapext 1.0/0.5E -sort other -uc "$user_dir/clusters_97_pre.uc"
     python3 "$script_dir/clusterparser_preclust1_pre.py" "$run_id"
 
     echo "Running 95% pre-clustering..."
     ## 95% pre-clustering
-    "$program_dir/usearch" -cluster_fast "$user_dir/in_95_pre.fasta" -id 0.95 -gapopen 0.0/0.0E -gapext 1.0/0.5E -sort other -uc "$user_dir/clusters_95_pre.uc"
+    "$program_dir/usearch" -cluster_fast "$user_dir/in_95_pre.fasta" -id 0.95 -threads $THREADS -gapopen 0.0/0.0E -gapext 1.0/0.5E -sort other -uc "$user_dir/clusters_95_pre.uc"
     python3 "$script_dir/clusterparser_preclust2_pre.py" "$run_id"
 
     echo "Running 90% pre-clustering..."
     ## 90% pre-clustering
-    "$program_dir/usearch" -cluster_fast "$user_dir/in_90_pre.fasta" -id 0.90 -gapopen 0.0/0.0E -gapext 1.0/0.5E -sort other -uc "$user_dir/clusters_90_pre.uc"
+    "$program_dir/usearch" -cluster_fast "$user_dir/in_90_pre.fasta" -id 0.90 -threads $THREADS -gapopen 0.0/0.0E -gapext 1.0/0.5E -sort other -uc "$user_dir/clusters_90_pre.uc"
     python3 "$script_dir/clusterparser_preclust3_pre.py" "$run_id"
 
     echo "Running 80% clustering..."
     ## 80% clustering
-    "$program_dir/usearch" -cluster_fast "$user_dir/in_80_pre.fasta" -id 0.80 -gapopen 0.0/0.0E -gapext 1.0/0.5E -sort other -uc "$user_dir/clusters_80_pre.uc"
+    "$program_dir/usearch" -cluster_fast "$user_dir/in_80_pre.fasta" -id 0.80 -threads $THREADS -gapopen 0.0/0.0E -gapext 1.0/0.5E -sort other -uc "$user_dir/clusters_80_pre.uc"
     python3 "$script_dir/clusterparser_preclust_final_pre.py" "$run_id"
 
     echo "Cleaning up intermediate pre-clustering files..."
@@ -244,7 +244,7 @@ if [ "$include_usearch_05_step" == "yes" ]; then
                 if (( "$result" > "16000" ))
                     then
                         echo "to be split: $line with $result sequences"
-                        "$program_dir/usearch" -cluster_fast $fname -id 0.97 -gapopen 0.0/0.0E -gapext 1.0/0.5E -sort other -uc "$clusters_pre_dir/clusters_2_90.uc"
+                        "$program_dir/usearch" -cluster_fast $fname -id 0.97 -threads $THREADS -gapopen 0.0/0.0E -gapext 1.0/0.5E -sort other -uc "$clusters_pre_dir/clusters_2_90.uc"
                         ## cluster into clusters_pre/ClusterX_folder/
                         rm -fr "$clusters_pre_dir/clusters/"$line"_folder"
                         mkdir "$clusters_pre_dir/clusters/"$line"_folder"
@@ -376,22 +376,22 @@ if [ -f "$user_dir/nohits.fasta" ]
 
                 echo "Running NOHITS clustering at 97%..."
                 ## 97%
-                "$program_dir/usearch" -cluster_fast "$user_dir/nohits.fasta" -id 0.97 -gapopen 0.0/0.0E -gapext 1.0/0.5E -uc "$user_dir/clusters_97.uc"
+                "$program_dir/usearch" -cluster_fast "$user_dir/nohits.fasta" -id 0.97 -threads $THREADS -gapopen 0.0/0.0E -gapext 1.0/0.5E -uc "$user_dir/clusters_97.uc"
                 python3 "$script_dir/clusterparser_preclust1.py" "$run_id"
 
                 echo "Running NOHITS clustering at 95%..."
                 ## 95%
-                "$program_dir/usearch" -cluster_fast "$user_dir/in_95.fasta" -id 0.95 -gapopen 0.0/0.0E -gapext 1.0/0.5E -uc "$user_dir/clusters_95.uc"
+                "$program_dir/usearch" -cluster_fast "$user_dir/in_95.fasta" -id 0.95 -threads $THREADS -gapopen 0.0/0.0E -gapext 1.0/0.5E -uc "$user_dir/clusters_95.uc"
                 python3 "$script_dir/clusterparser_preclust2.py" "$run_id"
 
                 echo "Running NOHITS clustering at 90%..."
                 ## 90%
-                "$program_dir/usearch" -cluster_fast "$user_dir/in_90.fasta" -id 0.90 -gapopen 0.0/0.0E -gapext 1.0/0.5E -uc "$user_dir/clusters_90.uc"
+                "$program_dir/usearch" -cluster_fast "$user_dir/in_90.fasta" -id 0.90 -threads $THREADS -gapopen 0.0/0.0E -gapext 1.0/0.5E -uc "$user_dir/clusters_90.uc"
                 python3 "$script_dir/clusterparser_preclust3.py" "$run_id"
 
                 echo "Running NOHITS clustering at 80%..."
                 ## 80%
-                "$program_dir/usearch" -cluster_fast "$user_dir/in_80.fasta" -id 0.80 -gapopen 0.0/0.0E -gapext 1.0/0.5E -uc "$user_dir/clusters_80.uc"
+                "$program_dir/usearch" -cluster_fast "$user_dir/in_80.fasta" -id 0.80 -threads $THREADS -gapopen 0.0/0.0E -gapext 1.0/0.5E -uc "$user_dir/clusters_80.uc"
                 python3 "$script_dir/clusterparser_preclust_final.py" "$run_id"
 
                 echo "Processing NOHITS compound clusters..."
@@ -427,7 +427,7 @@ if [ -f "$user_dir/nohits.fasta" ]
                         if (( "$result" > "16000" ))
                             then
                             echo "to be split: $line with $result sequences"
-                            "$program_dir/usearch" -cluster_fast $fname -id 0.97 -gapopen 0.0/0.0E -gapext 1.0/0.5E -sort other -uc "$clusters_dir/clusters_2_90.uc"
+                            "$program_dir/usearch" -cluster_fast $fname -id 0.97 -threads $THREADS -gapopen 0.0/0.0E -gapext 1.0/0.5E -sort other -uc "$clusters_dir/clusters_2_90.uc"
                             ## cluster into clusters/ClusterX_folder/
                             rm -fr $clusters_dir"/clusters/"$line"_folder"
                             mkdir $clusters_dir"/clusters/"$line"_folder"
