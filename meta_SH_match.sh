@@ -197,7 +197,7 @@ if [[ "$MODE" == "sequential" ]]; then
   for id in "${source_ids[@]}"; do
     num_id="${id#source_}"
     echo "Processing $id sequentially with run id $num_id..."
-    "$SH_MATCHING_DIR"/sh_matching_pub_tweak.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
+    "$SH_MATCHING_DIR"/sh_matching_pub_tweak.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes no no
   done
   popd > /dev/null
 elif [[ "$MODE" == "parallel" ]]; then
@@ -241,7 +241,7 @@ for (( i = start_index; i < end_index; i++ )); do
     fi
     num_id="${RUNID#source_}"
     echo "DEBUG: Task \$SLURM_PROCID on \$(hostname) processing RUNID index \$i: \$num_id"
-    "$SH_MATCHING_DIR"/sh_matching_pub_tweak.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes yes no
+    "$SH_MATCHING_DIR"/sh_matching_pub_tweak.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes no no
 done
 echo "DEBUG: Done with parallel processing"
 EOF
@@ -357,7 +357,7 @@ if [[ "$RERUN_UNMATCHED" == "yes" ]]; then
   cp "$rerun_fasta" "indata/source_${rerun_id}"
   
   echo "Processing re-run pipeline with run id $rerun_id..."
-  "$SH_MATCHING_DIR"/sh_matching_pub_tweak.sif /sh_matching/run_pipeline.sh "$rerun_id" itsfull no yes yes yes || { echo "Warning: Re-run pipeline failed for run id $rerun_id"; }
+  "$SH_MATCHING_DIR"/sh_matching_pub_tweak.sif /sh_matching/run_pipeline.sh "$rerun_id" itsfull no yes no yes || { echo "Warning: Re-run pipeline failed for run id $rerun_id"; }
   popd > /dev/null
   
   first_header=$(grep '^>' "$rerun_fasta" | head -1)
