@@ -24,6 +24,8 @@ echo "Retrieving parameters..."
 ## - 4. Flag indicating whether to delete the user directory upon pipeline completion (default, "yes")
 ## - 5. Flag indicating whether to include the vsearch substring dereplication (100% similarity clustering with 96% length coverage) step (default, "no")
 ## - 6. Flag indicating whether to conduct the usearch complete-linkage clustering at 0.5% dissimilarity (default, "no")
+##  Run the SH-matching pipeline with e.g. ./sh_matching.sif /sh_matching/run_pipeline.sh 02 itsfull no yes no no
+
 run_id=$1
 region=$2
 itsx_step=$3
