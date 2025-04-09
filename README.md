@@ -1,12 +1,12 @@
-**!! This fork is a personal development for trying out some semi-streamlined metabarcoding workflow !! Please use and [cite the main branch of SH-matching](https://github.com/TU-NHM/sh_matching_pub) if you intend to use this tool!!.**
+**!! This fork is in development for metabarcoding  !! Please use and [cite the main branch of SH-matching](https://github.com/TU-NHM/sh_matching_pub) if you intend to use this tool!!.**
 
 Adjustments include:
 -using all available threads.  
 -usearch11 64 bit version (for large clusters).  
 -replaced some csv dictionaries as they run into field limits.  
 -added script for re-running unmatched seqs togheter (detect larger 'new_SH' across input files).  
--increased echo statements.  
--script to run a fasta file with automatic splitting, possibility to run split files in parallel on multiple nodes
+-increased verbosity through echo statements.  
+-script for metabarcoding to run a fasta file with automatic splitting, possibility to run split files in parallel on multiple compute nodes.
 
 # SH MATCHING analysis tool
 
