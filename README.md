@@ -1,4 +1,6 @@
-**!! This fork is in development for metabarcoding  !! Please use and [cite the main branch of SH-matching](https://github.com/TU-NHM/sh_matching_pub) if you intend to use this tool!!.**
+**!! NB This fork is in development for metabarcoding  !!**  
+  
+**Please use and [cite the main branch of SH-matching](https://github.com/TU-NHM/sh_matching_pub) if you intend to use this tool!!.**  
 
 Adjustments include:
 -using all available threads.  
