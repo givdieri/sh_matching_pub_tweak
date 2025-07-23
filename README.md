@@ -38,14 +38,21 @@ The script expects input files in FASTA format. Outdata files are described in [
 ### Setup steps
 
 1. Create Singularity Image File (SIF)
-    ```console
+```console
     git clone https://github.com/MycoMatics/sh_matching_pub_tweak
     export APPTAINER_TMPDIR=/tmp
     mkdir -p $APPTAINER_TMPDIR
     chmod 777 /tmp
     cd sh_matching_pub_tweak/
     apptainer build sh_matching_tweak.sif sh_matching.def 2>&1 | tee build.log
-    ```
+```
+After cloning you may wish to track the original repository to stay up to date:
+```bash
+git remote add upstream https://github.com/TU-NHM/sh_matching_pub.git
+git fetch upstream
+git merge upstream/master     # or use rebase if preferred
+```
+If a merge reports conflicts, inspect the files listed by `git status`, edit them to resolve the differences and then complete the merge with `git add` and `git commit`.
 
 2. Create input, output and working data directories
     ```console
