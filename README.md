@@ -90,7 +90,7 @@ The script expects input files in FASTA format. Outdata files are described in [
        chmod +x meta_SH_match.sh
     
        bash meta_SH_match.sh
-       Usage: meta_SH_match_raw_umi.sh -i INPUT_FILE -s SH_MATCHING_DIR -o OUTPUT_DIR [-t THREADS] [-m MAX_SEQUENCES] [-M MODE] [-n NODES] [-r RERUN_UNMATCHED]  
+       Usage: meta_SH_match.sh -i INPUT_FILE -s SH_MATCHING_DIR -o OUTPUT_DIR [-t THREADS] [-m MAX_SEQUENCES] [-M MODE] [-n NODES] [-r RERUN_UNMATCHED]
       -i   Path to the input FASTA file
       -s   Directory for SH-matching files and tools
       -o   Output directory for results
@@ -139,8 +139,8 @@ The script expects input files in FASTA format. Outdata files are described in [
         fi
     done
       ```
-BONUS:  
-Similar to meta_sh_match script, there is a seperate script that can iterate across output files from SH-matching.  
+BONUS:
+Similar to meta_SH_match.sh script, there is a seperate script that can iterate across output files from SH-matching.
 From the output, sequences can be merged across barcodes/input files based on SH-code. That is not the case for new/non-existing clusters. Those we need to gather from output files. Running [filter_newsh.py]() iterates output files, collects sequences that are either new_singletons or new_sh at the 0.5% level, write them to a single file and appends RUNID information to the fasta headers to seperate them out later.
 You can use the file as a new input file for SH-matching and use the preferred cluster level resulting from this SH-matching to finalize your OTU-table.
 
