@@ -197,7 +197,7 @@ if [[ "$MODE" == "sequential" ]]; then
   for id in "${source_ids[@]}"; do
     num_id="${id#source_}"
     echo "Processing $id sequentially with run id $num_id..."
-    "$SH_MATCHING_DIR"/sh_matching_pub_tweak.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes no no
+    "$SH_MATCHING_DIR"/sh_matching_tweak.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes no no
   done
   popd > /dev/null
 elif [[ "$MODE" == "parallel" ]]; then
@@ -241,7 +241,7 @@ for (( i = start_index; i < end_index; i++ )); do
     fi
     num_id="${RUNID#source_}"
     echo "DEBUG: Task \$SLURM_PROCID on \$(hostname) processing RUNID index \$i: \$num_id"
-    "$SH_MATCHING_DIR"/sh_matching_pub_tweak.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes no no
+    "$SH_MATCHING_DIR"/sh_matching_tweak.sif /sh_matching/run_pipeline.sh "$num_id" itsfull no yes no no
 done
 echo "DEBUG: Done with parallel processing"
 EOF
@@ -352,14 +352,14 @@ if [[ "$RERUN_UNMATCHED" == "yes" ]]; then
   done
   rerun_id=$(printf "%03d" $((max_id + 1)))
   echo "Using run id $rerun_id for unmatched re-run."
-  
+
   pushd "$SH_MATCHING_DIR" > /dev/null
   cp "$rerun_fasta" "indata/source_${rerun_id}"
-  
+
   echo "Processing re-run pipeline with run id $rerun_id..."
-  "$SH_MATCHING_DIR"/sh_matching_pub_tweak.sif /sh_matching/run_pipeline.sh "$rerun_id" itsfull no yes no yes || { echo "Warning: Re-run pipeline failed for run id $rerun_id"; }
+  "$SH_MATCHING_DIR"/sh_matching_tweak.sif /sh_matching/run_pipeline.sh "$rerun_id" itsfull no yes no yes || { echo "Warning: Re-run pipeline failed for run id $rerun_id"; }
   popd > /dev/null
-  
+
   first_header=$(grep '^>' "$rerun_fasta" | head -1)
   if [ -z "$first_header" ]; then
       first_header="-"
@@ -370,7 +370,7 @@ if [[ "$RERUN_UNMATCHED" == "yes" ]]; then
       match_status="unmatched"
   fi
   echo -e "$INPUT_FILE\tindata/source_${rerun_id}\t$first_header\trerun_input\tsource_${rerun_id}\trerun_unmatched\t$match_status" >> "$MAPPING_FILE"
-  
+
   echo "Aggregating output from re-run pipeline..."
   TMP_OUT_RERUN=$(mktemp -d)
   rerun_zip="$SH_MATCHING_DIR/outdata/source_${rerun_id}.zip"
@@ -393,13 +393,13 @@ if [[ "$RERUN_UNMATCHED" == "yes" ]]; then
       rerun_output=""
       rm -rf "$TMP_OUT_RERUN"
   fi
-  
+
   echo "Creating new total TSV file..."
   cp "$matched_tsv" "$new_total_tsv"
   if [[ -n "$rerun_output" && -f "$rerun_output" ]]; then
       tail -n +2 "$rerun_output" >> "$new_total_tsv"
   fi
-  
+
   echo "Re-run pipeline complete. Files generated:"
   echo "Original TSV: $output_file"
   echo "Unmatched TSV: $unmatched_tsv"
@@ -444,7 +444,7 @@ if [[ "$RERUN_UNMATCHED" == "yes" ]]; then
     rm -f "$rerun_indata"
     echo "Removed rerun indata file: $rerun_indata"
   fi
-  
+
   rerun_outdata="$SH_MATCHING_DIR/outdata/source_${rerun_id}.zip"
   if [[ -f "$rerun_outdata" ]]; then
     rm -f "$rerun_outdata"
