@@ -33,15 +33,25 @@ parser = argparse.ArgumentParser(
     description="Filter sequences from Promethion runs and optionally clean up intermediate files."
 )
 parser.add_argument(
-    "--keep-temp", 
-    action="store_true", 
+    "--keep-temp",
+    action="store_true",
     help="Keep the intermediate extraction and filtered directories (default: remove them)."
+)
+parser.add_argument(
+    "--outdata-dir",
+    default="outdata",
+    help="Directory containing zipped outdata files (default: %(default)s)"
+)
+parser.add_argument(
+    "--indata-dir",
+    default="indata",
+    help="Directory containing original indata files (default: %(default)s)"
 )
 args = parser.parse_args()
 
-# Define base directories
-OUTDATA_DIR = "path/to/outdata"
-INDATA_DIR = "path/to/indata"
+# Define base directories from arguments
+OUTDATA_DIR = args.outdata_dir
+INDATA_DIR = args.indata_dir
 FILTERED_DIR = "filtered_sequences"
 
 # Create output directory for filtered sequences if it doesn't exist
